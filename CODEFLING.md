@@ -32,15 +32,13 @@ Configurable corner HUD panels for Rust: clock, rotating announcements, balance,
 
 | Permission | Description |
 | --- | --- |
-| moderninfopanel.admin | Allows reloading the configuration via /ipanel reload and the moderninfopanel.reload console command. |
+| moderninfopanel.admin | Allows reloading the configuration via 'mipanel reload' from chat, console, or RCON (the server console and RCON are always authorized). |
 
 ## Commands
 
 | Command | Arguments | Description |
 | --- | --- | --- |
-| `ipanel` | `[hide|show|clock game|clock server [offset]|timeformat [index]|reload]` | Open the help menu and manage your panel (hide/show, clock mode/offset, time format); 'reload' is admin-only. |
-| `infopanel` | `[hide|show|clock game|clock server [offset]|timeformat [index]|reload]` | Alias of /ipanel. |
-| `moderninfopanel.reload` | `—` | Console command (admin) to reload the configuration and redraw all panels. |
+| `mipanel` | `[hide|show|clock game|clock server [offset]|timeformat [index]|reload]` | Universal command (chat /mipanel, in-game F1 console, server console, and RCON as 'mipanel ...'). Manage your panel (hide/show, clock mode/offset, time format); 'reload' is admin/server-only and works from any context. |
 
 ## Installation
 
@@ -62,10 +60,12 @@ Configurable corner HUD panels for Rust: clock, rotating announcements, balance,
   `Compass` (text or degrees), `OnlinePlayers`, `Sleepers`, and live event
   indicators `AirdropEvent`, `HelicopterEvent`, `ChinookEvent`, `CargoShipEvent`,
   `BradleyEvent`, and `RadiationEvent`.
-- Per-player controls via `/ipanel` (and `/infopanel` alias): `hide`/`show`,
-  `clock game`, `clock server [offset]`, `timeformat [index]`, and admin `reload`;
-  choices persist across reconnects.
-- Console command `moderninfopanel.reload` and permission `moderninfopanel.admin`;
+- A single universal `mipanel` command, registered via covalence so it runs from
+  chat (`/mipanel …`), the in-game F1 console, the **server console**, and **RCON**
+  (consoles use `mipanel …`): `hide`/`show`, `clock game`, `clock server [offset]`,
+  `timeformat [index]`, and admin/server `reload`. Per-player choices persist across
+  reconnects; `reload` works from any context.
+- Permission `moderninfopanel.admin` (server console/RCON are always authorized);
   dynamic per-panel permissions (`moderninfopanel.<suffix>`).
 - Reflection-free developer API: `PanelRegister`, `PanelUnregister`,
   `SetPanelText`, `SetPanelImage`, `ShowPanel`, `HidePanel`, `RefreshPanel`,

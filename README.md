@@ -25,7 +25,7 @@ event indicators. **Compatible with both Oxide and Carbon.**
 - **Live event indicators** — airdrop, patrol helicopter, chinook, cargo ship,
   bradley, and radiation icons that recolor while the event is active.
 - **Per-player control** — players hide/show their panel and tune their clock with
-  `/ipanel`; their choices persist across reconnects.
+  `/mipanel`; their choices persist across reconnects.
 - **Per-panel permissions** — optionally gate any panel behind a permission.
 - **Reflection-free developer API** — other plugins can register, update, show,
   hide, and remove their own panels.
@@ -46,21 +46,27 @@ See [INSTALL.md](INSTALL.md) for updating, permissions, and troubleshooting.
 
 | Permission | Description |
 | --- | --- |
-| `moderninfopanel.admin` | Reload the configuration via `/ipanel reload` and the `moderninfopanel.reload` console command. |
+| `moderninfopanel.admin` | Reload the configuration via `mipanel reload` (chat/console/RCON). The server console and RCON are always authorized. |
 | `moderninfopanel.<suffix>` | Dynamic — registered for any panel that sets a `Permission suffix`; only holders see that panel. |
 
 ## Commands
 
+A single command, `mipanel`, works from **every** context: chat (`/mipanel …`),
+the in-game F1 console, the **server console**, and **RCON** (in consoles, omit the
+slash: `mipanel …`).
+
 | Command | Arguments | Description |
 | --- | --- | --- |
-| `/ipanel` | *(none)* | Show the command help. |
-| `/ipanel` | `hide` \| `show` | Hide or show your panel (persists across reconnects). |
-| `/ipanel` | `clock game` | Use in-game time. |
-| `/ipanel` | `clock server [offset]` | Use server time; optional hour offset `-23..23`. |
-| `/ipanel` | `timeformat [index]` | List or pick a clock format. |
-| `/ipanel` | `reload` | **Admin** — reload config and redraw all panels. |
-| `/infopanel` | — | Alias of `/ipanel`. |
-| `moderninfopanel.reload` | — | **Admin** console command — reload config and redraw all panels. |
+| `mipanel` | *(none)* | Show the command help. |
+| `mipanel` | `hide` \| `show` | Hide or show your panel (persists across reconnects). Player-only. |
+| `mipanel` | `clock game` | Use in-game time. Player-only. |
+| `mipanel` | `clock server [offset]` | Use server time; optional hour offset `-23..23`. Player-only. |
+| `mipanel` | `timeformat [index]` | List or pick a clock format. Player-only. |
+| `mipanel` | `reload` | **Admin/server** — reload config and redraw all panels. Works from chat, console, RCON, and the server console. |
+
+> The per-player subcommands (`hide`, `show`, `clock`, `timeformat`) need a player,
+> so from the server console/RCON only `reload` applies; the rest reply with a hint
+> to run them in-game.
 
 ## Configuration
 
@@ -88,7 +94,7 @@ Built-in panel names: `Clock`, `Messages`, `Balance`, `Points`, `Coordinates`,
 > (the original InfoPanel artwork). Clients fetch them directly; swap the `Url`
 > values for self-hosted images if you prefer not to depend on a third party.
 
-Edit the file and run `/ipanel reload` (or `o.reload ModernInfoPanel`) to apply.
+Edit the file and run `mipanel reload` (or `o.reload ModernInfoPanel`) to apply.
 
 ### Developer API
 

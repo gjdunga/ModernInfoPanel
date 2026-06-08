@@ -42,8 +42,9 @@ oxide.grant group vip moderninfopanel.vip
 
 Edit `ModernInfoPanel.json`, then apply with either:
 
-- in-game (admin): `/ipanel reload`
-- console: `moderninfopanel.reload` or `o.reload ModernInfoPanel`
+- in-game (admin): `/mipanel reload`
+- server console / RCON: `mipanel reload`
+- Oxide/Carbon reload of the whole plugin: `o.reload ModernInfoPanel` / `c.reload ModernInfoPanel`
 
 See the [README](README.md#configuration) for the full schema.
 
@@ -58,16 +59,16 @@ The panel is removed from every player's screen automatically when the plugin un
 ## Troubleshooting
 
 - **No panel appears** — confirm the plugin loaded (`o.plugins` / `c.plugins`) and
-  that the relevant `Dock` and `Panel` are `Enabled`. A player who ran `/ipanel hide`
-  stays hidden until `/ipanel show`.
+  that the relevant `Dock` and `Panel` are `Enabled`. A player who ran `/mipanel hide`
+  stays hidden until `/mipanel show`.
 - **Balance/Points show 0** — install Economics / ServerRewards, or disable those
   panels in the config.
-- **Clock looks wrong** — `/ipanel clock game` uses the in-game day/night clock;
-  `/ipanel clock server [offset]` uses the host clock with an hour offset. Change the
+- **Clock looks wrong** — `/mipanel clock game` uses the in-game day/night clock;
+  `/mipanel clock server [offset]` uses the host clock with an hour offset. Change the
   default format under `Panels → Clock → Settings → Format`.
 - **Icons are missing** — event/icon panels fetch PNGs from external URLs; verify
   the client has internet access or replace the `Url` values with self-hosted images.
 - **Text is clipped** — widen the panel's `Width within dock`, widen its dock, or
   lower the `Font size`.
-- **Config didn't apply** — run `/ipanel reload`; check the console for a config
+- **Config didn't apply** — run `/mipanel reload`; check the console for a config
   error (a malformed file is replaced with defaults, and Oxide backs up the old one).
