@@ -22,6 +22,7 @@
   "ImportNone": "Nenhuma configuração do InfoPanel encontrada em {0}.",
   "ImportFailed": "Falha ao importar o InfoPanel: {0}.",
   "ImportOutside": "O caminho de importação deve estar dentro do diretório de configuração.",
+  "WipeCountdown": "Wipe em {0}d {1}h",
   "PlayersLabel": "{0} / {1}",
   "DirN": "Norte",
   "DirNE": "Nordeste",

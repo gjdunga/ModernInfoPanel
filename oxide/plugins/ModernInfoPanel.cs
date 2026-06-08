@@ -35,7 +35,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Modern Info Panel", "gjdunga", "1.3.2")]
+    [Info("Modern Info Panel", "gjdunga", "1.4.0")]
     [Description("Configurable corner HUD panels: clock, announcements, balance, points, coordinates, compass, player counts and live event indicators. Oxide + Carbon compatible.")]
     public class ModernInfoPanel : RustPlugin
     {
@@ -69,6 +69,9 @@ namespace Oxide.Plugins
         private const string PCargo = "CargoShipEvent";
         private const string PBradley = "BradleyEvent";
         private const string PRadiation = "RadiationEvent";
+        private const string PServerFps = "ServerFPS";
+        private const string PPing = "Ping";
+        private const string PWipe = "WipeCountdown";
 
         // Third-party API limits.
         private const int MaxPanelsPerPlugin = 25;
@@ -89,6 +92,11 @@ namespace Oxide.Plugins
         private long _tick;
         private int _messageIndex;
         private bool _dataDirty;
+
+        // WipeCountdown state.
+        private DateTime _wipeAt;          // cached next-wipe time (default = recompute)
+        private bool _newSavePending;      // OnNewSave fired before data was ready
+        private bool _wipeWarned;          // warn about an unset schedule only once
 
         // Light per-player command cooldown (Time.realtimeSinceStartup) to blunt console-macro spam.
         private readonly Dictionary<string, float> _lastCmd = new Dictionary<string, float>();
@@ -144,7 +152,7 @@ namespace Oxide.Plugins
         private sealed class Configuration
         {
             [JsonProperty("Config version")]
-            public string Version = "1.3.2";
+            public string Version = "1.4.0";
 
             [JsonProperty("General")]
             public GeneralOptions General = new GeneralOptions();
@@ -157,6 +165,9 @@ namespace Oxide.Plugins
 
             [JsonProperty("Rotating announcement messages")]
             public List<string> Messages = new List<string>();
+
+            [JsonProperty("Wipe schedule")]
+            public WipeOptions Wipe = new WipeOptions();
         }
 
         private sealed class GeneralOptions
@@ -172,6 +183,24 @@ namespace Oxide.Plugins
 
             [JsonProperty("Show panels to players by default")]
             public bool ShownByDefault = true;
+
+            [JsonProperty("Panel fade-in seconds (0 = off)")]
+            public float FadeIn = 0.2f;
+
+            [JsonProperty("Resolve {tokens} via PlaceholderAPI if installed")]
+            public bool UsePlaceholderApi = true;
+        }
+
+        private sealed class WipeOptions
+        {
+            [JsonProperty("Interval (auto | weekly | biweekly | monthly | custom)")]
+            public string Interval = "auto";
+            [JsonProperty("Wipe day of week (server time)")]
+            public string DayOfWeek = "Thursday";
+            [JsonProperty("Wipe time (HH:mm, server time)")]
+            public string Time = "19:00";
+            [JsonProperty("Custom interval days (for 'custom')")]
+            public int CustomDays = 0;
         }
 
         private sealed class DockConfig
@@ -197,6 +226,8 @@ namespace Oxide.Plugins
             [JsonProperty("Permission suffix (null = everyone)", NullValueHandling = NullValueHandling.Ignore)]
             public string Permission;
             [JsonProperty("Refresh interval seconds (0 = static/event-driven)")] public int RefreshInterval;
+            [JsonProperty("Run command on click (console cmd, blank = off)", NullValueHandling = NullValueHandling.Ignore)]
+            public string Command;
             [JsonProperty("Image", NullValueHandling = NullValueHandling.Ignore)] public ImageElement Image;
             [JsonProperty("Text", NullValueHandling = NullValueHandling.Ignore)] public TextElement Text;
             [JsonProperty("Settings", NullValueHandling = NullValueHandling.Ignore)]
@@ -346,6 +377,21 @@ namespace Oxide.Plugins
                         Dock = "BottomRightDock", Order = 1, Width = 0.5f, RefreshInterval = 1,
                         Image = new ImageElement { Url = "https://i.imgur.com/7brpZTi.png", Width = 0.2f },
                         Text = new TextElement { FontSize = 12, Left = 0.22f }
+                    }),
+                    [PServerFps] = Disabled(new PanelConfig
+                    {
+                        Dock = "BottomRightDock", Order = 2, Width = 0.25f, RefreshInterval = 5,
+                        Text = new TextElement { FontSize = 12 }
+                    }),
+                    [PPing] = Disabled(new PanelConfig
+                    {
+                        Dock = "BottomRightDock", Order = 3, Width = 0.25f, RefreshInterval = 5,
+                        Text = new TextElement { FontSize = 12 }
+                    }),
+                    [PWipe] = Disabled(new PanelConfig
+                    {
+                        Dock = "TopRightDock", Order = 2, Width = 0.5f, RefreshInterval = 60,
+                        Text = new TextElement { FontSize = 12 }
                     })
                 }
             };
@@ -413,7 +459,8 @@ namespace Oxide.Plugins
         private static readonly HashSet<string> BuiltInPanels = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             PClock, PMessages, PBalance, PPoints, PCoordinates, PCompass, POnline, PSleepers,
-            PAirdrop, PHeli, PChinook, PCargo, PBradley, PRadiation
+            PAirdrop, PHeli, PChinook, PCargo, PBradley, PRadiation,
+            PServerFps, PPing, PWipe
         };
 
         // Read an InfoPanel config from `path` and overlay everything we recognise onto `cfg`
@@ -615,6 +662,7 @@ namespace Oxide.Plugins
                 ["ImportNone"] = "No InfoPanel config found at {0}.",
                 ["ImportFailed"] = "InfoPanel import failed: {0}.",
                 ["ImportOutside"] = "Import path must be inside the config directory.",
+                ["WipeCountdown"] = "Wipe in {0}d {1}h",
                 ["PlayersLabel"] = "{0} / {1}",
                 ["DirN"] = "North", ["DirNE"] = "Northeast", ["DirE"] = "East", ["DirSE"] = "Southeast",
                 ["DirS"] = "South", ["DirSW"] = "Southwest", ["DirW"] = "West", ["DirNW"] = "Northwest"
@@ -641,6 +689,7 @@ namespace Oxide.Plugins
         private void OnServerInitialized()
         {
             LoadStoredData();
+            ReconcileWipe();
             RebuildIndex();
 
             EventTypes.Clear();
@@ -719,6 +768,15 @@ namespace Oxide.Plugins
             if (ev != null && _eventEntities.ContainsKey(ev)) _eventEntities[ev].Remove(ent);
         }
 
+        // Fires on a map wipe (a new world save) — NOT on a blueprint-only wipe. May fire
+        // before our data is loaded; OnServerInitialized reconciles that case.
+        private void OnNewSave(string filename)
+        {
+            if (_data == null) { _newSavePending = true; return; }
+            RecordWipe(DateTime.UtcNow);
+            Puts("Map wipe detected; wipe countdown anchored to now.");
+        }
+
         private void OnPluginUnloaded(Plugin plugin)
         {
             if (plugin == null) return;
@@ -751,6 +809,8 @@ namespace Oxide.Plugins
         private sealed class StoredData
         {
             public Dictionary<string, PlayerPrefs> Players = new Dictionary<string, PlayerPrefs>();
+            public DateTime LastWipe;   // UTC time the map was last wiped (OnNewSave / save-file estimate)
+            public string MapId;        // World seed:size, to detect a map change across restarts
         }
 
         private sealed class PlayerPrefs
@@ -876,6 +936,7 @@ namespace Oxide.Plugins
         private static string NPanel(string s) => "MIP_panel_" + s;
         private static string NText(string s) => "MIP_text_" + s;
         private static string NImage(string s) => "MIP_image_" + s;
+        private static string NButton(string s) => "MIP_btn_" + s;
 
         private void RedrawAll()
         {
@@ -887,6 +948,7 @@ namespace Oxide.Plugins
         {
             BasePlayer player = view.Player;
             if (!Ready(view)) return;
+            float fade = Mathf.Max(0f, _config.General.FadeIn);
 
             CuiHelper.DestroyUi(player, Root);
             view.Text.Clear();
@@ -917,7 +979,7 @@ namespace Oxide.Plugins
                 Vector4 dr = DockRect(dock);
                 c.Add(new CuiPanel
                 {
-                    Image = { Color = SafeColor(dock.BackgroundColor, "0 0 0 0") },
+                    Image = { Color = SafeColor(dock.BackgroundColor, "0 0 0 0"), FadeIn = fade },
                     RectTransform = { AnchorMin = Pos(dr.x, dr.y), AnchorMax = Pos(dr.z, dr.w) }
                 }, Root, NDock(dockPair.Key));
 
@@ -941,7 +1003,7 @@ namespace Oxide.Plugins
                     string panelName = NPanel(e.Name);
                     c.Add(new CuiPanel
                     {
-                        Image = { Color = SafeColor(e.Cfg.BackgroundColor, "0 0 0 0.45") },
+                        Image = { Color = SafeColor(e.Cfg.BackgroundColor, "0 0 0 0.45"), FadeIn = fade },
                         RectTransform = { AnchorMin = Pos(x0, 0f), AnchorMax = Pos(x1, 1f) }
                     }, NDock(dockPair.Key), panelName);
 
@@ -956,6 +1018,7 @@ namespace Oxide.Plugins
         private void AddContents(CuiElementContainer c, PlayerView view, PanelEntry e, string parent)
         {
             PanelConfig cfg = e.Cfg;
+            float fade = Mathf.Max(0f, _config.General.FadeIn);
 
             if (cfg.Image != null && cfg.Image.Enabled && !string.IsNullOrEmpty(cfg.Image.Url))
             {
@@ -970,7 +1033,7 @@ namespace Oxide.Plugins
                     Parent = parent,
                     Components =
                     {
-                        new CuiRawImageComponent { Url = cfg.Image.Url, Color = color },
+                        new CuiRawImageComponent { Url = cfg.Image.Url, Color = color, FadeIn = fade },
                         new CuiRectTransformComponent { AnchorMin = Pos(0.02f, y0), AnchorMax = Pos(iw, y0 + ih) }
                     }
                 });
@@ -988,10 +1051,23 @@ namespace Oxide.Plugins
                         Text = text,
                         FontSize = Mathf.Clamp(cfg.Text.FontSize, 6, 48),
                         Align = ParseAnchor(cfg.Text.Align),
-                        Color = SafeColor(cfg.Text.Color, "1 1 1 1")
+                        Color = SafeColor(cfg.Text.Color, "1 1 1 1"),
+                        FadeIn = fade
                     },
                     RectTransform = { AnchorMin = Pos(tl, 0f), AnchorMax = "1 1" }
                 }, parent, NText(e.Name));
+            }
+
+            // Optional: make the whole panel a click target that runs a console command
+            // (run as the clicking player). Placeholders are resolved in the command too.
+            if (!string.IsNullOrEmpty(cfg.Command))
+            {
+                c.Add(new CuiButton
+                {
+                    Button = { Command = ResolvePlaceholders(cfg.Command, view), Color = "0 0 0 0" },
+                    Text = { Text = "" },
+                    RectTransform = { AnchorMin = "0 0", AnchorMax = "1 1" }
+                }, parent, NButton(e.Name));
             }
         }
 
@@ -1108,6 +1184,12 @@ namespace Oxide.Plugins
             bool dueCompass = Due(PCompass);
             bool dueBalance = Due(PBalance);
             bool duePoints = Due(PPoints);
+            bool dueFps = Due(PServerFps);
+            bool duePing = Due(PPing);
+            bool dueWipe = Due(PWipe);
+
+            string fpsText = dueFps ? ServerFpsText() : null;
+            string wipeText = dueWipe ? WipeText() : null;
 
             foreach (PlayerView view in _views.Values)
             {
@@ -1115,13 +1197,16 @@ namespace Oxide.Plugins
 
                 if (onlineText != null) PushText(view, POnline, onlineText);
                 if (sleepersText != null) PushText(view, PSleepers, sleepersText);
-                if (messageText != null) PushText(view, PMessages, messageText);
+                if (messageText != null) PushText(view, PMessages, ResolvePlaceholders(messageText, view));
 
                 if (dueClock) PushText(view, PClock, ClockText(view));
                 if (dueCoord) PushText(view, PCoordinates, CoordText(view));
                 if (dueCompass) PushText(view, PCompass, CompassText(view));
                 if (dueBalance) PushText(view, PBalance, BalanceText(view));
                 if (duePoints) PushText(view, PPoints, PointsText(view));
+                if (fpsText != null) PushText(view, PServerFps, fpsText);
+                if (duePing) PushText(view, PPing, PingText(view));
+                if (wipeText != null) PushText(view, PWipe, wipeText);
             }
 
             // Debounced persistence: flush at most ~once a minute when dirty.
@@ -1141,21 +1226,191 @@ namespace Oxide.Plugins
             switch (e.Name)
             {
                 case PClock: return ClockText(view);
-                case PMessages: return CurrentMessage();
+                case PMessages: return ResolvePlaceholders(CurrentMessage(), view);
                 case PBalance: return BalanceText(view);
                 case PPoints: return PointsText(view);
                 case PCoordinates: return CoordText(view);
                 case PCompass: return CompassText(view);
                 case POnline: return OnlineText();
                 case PSleepers: return BasePlayer.sleepingPlayerList.Count.ToString(Inv);
+                case PServerFps: return ServerFpsText();
+                case PPing: return PingText(view);
+                case PWipe: return WipeText();
                 default:
                     string custom;
-                    if (_customText.TryGetValue(e.Name, out custom)) return custom ?? string.Empty;
-                    return e.Cfg.Text?.Content ?? string.Empty;
+                    string raw = _customText.TryGetValue(e.Name, out custom) && custom != null
+                        ? custom : (e.Cfg.Text?.Content ?? string.Empty);
+                    return ResolvePlaceholders(raw, view);
             }
         }
 
         private string OnlineText() => L("PlayersLabel", null, BasePlayer.activePlayerList.Count, ConVar.Server.maxplayers);
+
+        private string ServerFpsText() => ((int)Performance.report.frameRate).ToString(Inv) + " FPS";
+
+        private string PingText(PlayerView view)
+        {
+            try { return Network.Net.sv.GetAveragePing(view.Player.Connection).ToString(Inv) + " ms"; }
+            catch { return "0 ms"; }
+        }
+
+        // --- Placeholders ---------------------------------------------------------
+        // Resolve {tokens} in `template` for one viewer. Tokens are viewer-scoped ({name} is the
+        // viewer's own name, shown only to themselves), so there's no cross-player text injection.
+        private string ResolvePlaceholders(string template, PlayerView view)
+        {
+            if (string.IsNullOrEmpty(template) || template.IndexOf('{') < 0) return template;
+            string s = template;
+            s = Replace(s, "{name}", view.Player?.displayName);
+            s = Replace(s, "{online}", BasePlayer.activePlayerList.Count.ToString(Inv));
+            s = Replace(s, "{max}", ConVar.Server.maxplayers.ToString(Inv));
+            s = Replace(s, "{sleepers}", BasePlayer.sleepingPlayerList.Count.ToString(Inv));
+            s = Replace(s, "{server}", ConVar.Server.hostname);
+            s = Replace(s, "{wipe}", WipeText());
+            s = Replace(s, "{lastwipe}", _data != null && _data.LastWipe != default(DateTime) ? _data.LastWipe.ToString("yyyy-MM-dd", Inv) : "");
+            if (view.Player != null)
+            {
+                s = Replace(s, "{time}", ClockText(view));
+                s = Replace(s, "{balance}", BalanceText(view));
+                s = Replace(s, "{points}", PointsText(view));
+                if (s.IndexOf("{grid}", StringComparison.OrdinalIgnoreCase) >= 0
+                    || s.IndexOf("{coords}", StringComparison.OrdinalIgnoreCase) >= 0
+                    || s.IndexOf("{x}", StringComparison.OrdinalIgnoreCase) >= 0
+                    || s.IndexOf("{z}", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    Vector3 pos = view.Player.transform.position;
+                    s = Replace(s, "{grid}", Grid(pos));
+                    s = Replace(s, "{coords}", "X: " + Mathf.RoundToInt(pos.x).ToString(Inv) + " Z: " + Mathf.RoundToInt(pos.z).ToString(Inv));
+                    s = Replace(s, "{x}", Mathf.RoundToInt(pos.x).ToString(Inv));
+                    s = Replace(s, "{z}", Mathf.RoundToInt(pos.z).ToString(Inv));
+                }
+            }
+
+            // Optional PlaceholderAPI passthrough for any remaining {tokens} (best-effort).
+            if (_config.General.UsePlaceholderApi && s.IndexOf('{') >= 0 && view.Player != null)
+            {
+                Plugin papi = plugins.Find("PlaceholderAPI");
+                if (papi != null)
+                {
+                    try { object r = papi.Call("ProcessPlaceholders", s, view.Player); if (r is string rs) s = rs; }
+                    catch { }
+                }
+            }
+            return ClampText(s);
+        }
+
+        private static string Replace(string s, string token, string value)
+        {
+            int idx;
+            while ((idx = s.IndexOf(token, StringComparison.OrdinalIgnoreCase)) >= 0)
+                s = s.Substring(0, idx) + (value ?? string.Empty) + s.Substring(idx + token.Length);
+            return s;
+        }
+
+        // --- Wipe countdown -------------------------------------------------------
+        private static string CurrentMapId()
+        {
+            try { return World.Seed + ":" + World.Size; } catch { return string.Empty; }
+        }
+
+        private static DateTime? SaveFileTimeUtc()
+        {
+            try
+            {
+                string f = World.SaveFileName;
+                if (!string.IsNullOrEmpty(f) && File.Exists(f)) return File.GetCreationTimeUtc(f);
+            }
+            catch { }
+            return null;
+        }
+
+        private void RecordWipe(DateTime whenUtc)
+        {
+            if (_data == null) return;
+            _data.LastWipe = whenUtc;
+            _data.MapId = CurrentMapId();
+            _wipeAt = default(DateTime);
+            MarkDataDirty();
+        }
+
+        // Establish/repair the last-wipe anchor at startup: honor a pending OnNewSave, else
+        // detect a map change vs. the stored identity, estimating from the save file (or the
+        // most recent scheduled day/time, or now).
+        private void ReconcileWipe()
+        {
+            if (_data == null) return;
+            if (_newSavePending) { _newSavePending = false; RecordWipe(DateTime.UtcNow); return; }
+            string id = CurrentMapId();
+            if (_data.LastWipe == default(DateTime) || _data.MapId != id)
+                RecordWipe(SaveFileTimeUtc() ?? MostRecentScheduledUtc() ?? DateTime.UtcNow);
+        }
+
+        // weekly/biweekly/monthly from explicit config, else auto-detected from server.tags; null = unresolved.
+        private string ResolveCadence()
+        {
+            string iv = (_config.Wipe.Interval ?? "auto").Trim().ToLowerInvariant();
+            if (iv == "weekly" || iv == "biweekly" || iv == "monthly" || iv == "custom") return iv;
+            if (iv == "auto")
+            {
+                string tags = (ConVar.Server.tags ?? string.Empty).ToLowerInvariant();
+                if (tags.Contains("biweekly")) return "biweekly";
+                if (tags.Contains("monthly")) return "monthly";
+                if (tags.Contains("weekly")) return "weekly";
+            }
+            return null;
+        }
+
+        private DateTime? MostRecentScheduledUtc()
+        {
+            DayOfWeek dow;
+            if (!Enum.TryParse(_config.Wipe.DayOfWeek, true, out dow)) return null;
+            TimeSpan tod;
+            if (!TimeSpan.TryParse(_config.Wipe.Time, Inv, out tod)) tod = new TimeSpan(19, 0, 0);
+            DateTime now = DateTime.UtcNow;
+            DateTime candidate = now.Date + tod;
+            for (int i = 0; i < 8; i++)
+            {
+                if (candidate.DayOfWeek == dow && candidate <= now) return candidate;
+                candidate = candidate.AddDays(-1);
+            }
+            return null;
+        }
+
+        // Next wipe (UTC), anchored on the real last map wipe so weekday/time carry over.
+        private DateTime NextWipe()
+        {
+            if (_wipeAt != default(DateTime) && _wipeAt > DateTime.UtcNow) return _wipeAt;
+            string cadence = ResolveCadence();
+            if (cadence == null) { WarnWipeUnset(); return default(DateTime); }
+
+            DateTime now = DateTime.UtcNow;
+            DateTime next = (_data != null && _data.LastWipe != default(DateTime)) ? _data.LastWipe : now;
+            if (cadence == "monthly")
+                do { next = next.AddMonths(1); } while (next <= now);
+            else
+            {
+                int step = cadence == "biweekly" ? 14 : cadence == "custom" ? Math.Max(1, _config.Wipe.CustomDays) : 7;
+                do { next = next.AddDays(step); } while (next <= now);
+            }
+            _wipeAt = next;
+            return next;
+        }
+
+        private string WipeText()
+        {
+            DateTime next = NextWipe();
+            if (next == default(DateTime)) return string.Empty;
+            TimeSpan left = next - DateTime.UtcNow;
+            if (left.Ticks < 0) left = TimeSpan.Zero;
+            return L("WipeCountdown", null, left.Days, left.Hours);
+        }
+
+        private void WarnWipeUnset()
+        {
+            if (_wipeWarned) return;
+            _wipeWarned = true;
+            PrintWarning("Wipe schedule not set: add weekly|biweekly|monthly to server.tags, or set 'Wipe schedule' -> Interval in the config. The WipeCountdown panel stays blank until then.");
+        }
 
         private string ClockText(PlayerView view)
         {

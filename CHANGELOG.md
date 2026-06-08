@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Dates are UTC.
 
+## [1.4.0] - 2026-06-08
+
+### Added
+- **Dynamic placeholders** in panel `Static content` and rotating announcements — `{name}`,
+  `{online}`, `{max}`, `{sleepers}`, `{grid}`, `{coords}`, `{x}`, `{z}`, `{time}`, `{balance}`,
+  `{points}`, `{server}`, `{wipe}`, `{lastwipe}` — resolved per-viewer. Optional pass-through to
+  the **PlaceholderAPI** plugin if it's installed (`General → Resolve {tokens} via PlaceholderAPI`).
+- **Clickable panels** — set a panel's `Run command on click` to a console command (run as the
+  clicking player; placeholders resolved) to turn it into a launcher.
+- **Three new built-in panels** (all disabled by default): `ServerFPS`, `Ping`, and
+  `WipeCountdown`.
+- **Wipe countdown** — shows `Wipe in Xd Yh`. The cadence is auto-detected from the server's
+  browser tags (`weekly`/`biweekly`/`monthly`; override or `custom` in `Wipe schedule`), and the
+  anchor is the **actual last map wipe** — detected via the `OnNewSave` hook (map wipe, *not* a
+  blueprint wipe) and the save-file timestamp on first run. Warns once if the cadence is unset.
+- **Panel fade-in** — `General → Panel fade-in seconds` (0 = off); fades panels in on draw without
+  re-fading on value updates.
+
 ## [1.3.2] - 2026-06-08
 
 ### Changed

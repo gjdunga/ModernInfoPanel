@@ -1,10 +1,12 @@
 {
-  "Config version": "1.3.2",
+  "Config version": "1.4.0",
   "General": {
     "Coordinate format (0 = X/Z, 1 = grid, 2 = both)": 2,
     "Compass shows text direction (false = degrees)": true,
     "Message rotation order (normal | random)": "normal",
-    "Show panels to players by default": true
+    "Show panels to players by default": true,
+    "Panel fade-in seconds (0 = off)": 0.2,
+    "Resolve {tokens} via PlaceholderAPI if installed": true
   },
   "Docks": {
     "TopLeftDock": {
@@ -350,11 +352,68 @@
         "Static content (text/3rd-party panels)": "",
         "Offset from left within panel (0-1)": 0.22
       }
+    },
+    "ServerFPS": {
+      "Enabled": false,
+      "Dock": "BottomRightDock",
+      "Order": 2,
+      "Width within dock (0-1)": 0.25,
+      "Align within dock (Left | Right)": "Left",
+      "Background color (R G B A)": "0 0 0 0.45",
+      "Refresh interval seconds (0 = static/event-driven)": 5,
+      "Text": {
+        "Enabled": true,
+        "Font size": 12,
+        "Color (R G B A)": "1 1 1 1",
+        "Alignment (TextAnchor)": "MiddleCenter",
+        "Static content (text/3rd-party panels)": "",
+        "Offset from left within panel (0-1)": 0.0
+      }
+    },
+    "Ping": {
+      "Enabled": false,
+      "Dock": "BottomRightDock",
+      "Order": 3,
+      "Width within dock (0-1)": 0.25,
+      "Align within dock (Left | Right)": "Left",
+      "Background color (R G B A)": "0 0 0 0.45",
+      "Refresh interval seconds (0 = static/event-driven)": 5,
+      "Text": {
+        "Enabled": true,
+        "Font size": 12,
+        "Color (R G B A)": "1 1 1 1",
+        "Alignment (TextAnchor)": "MiddleCenter",
+        "Static content (text/3rd-party panels)": "",
+        "Offset from left within panel (0-1)": 0.0
+      }
+    },
+    "WipeCountdown": {
+      "Enabled": false,
+      "Dock": "TopRightDock",
+      "Order": 2,
+      "Width within dock (0-1)": 0.5,
+      "Align within dock (Left | Right)": "Left",
+      "Background color (R G B A)": "0 0 0 0.45",
+      "Refresh interval seconds (0 = static/event-driven)": 60,
+      "Text": {
+        "Enabled": true,
+        "Font size": 12,
+        "Color (R G B A)": "1 1 1 1",
+        "Alignment (TextAnchor)": "MiddleCenter",
+        "Static content (text/3rd-party panels)": "",
+        "Offset from left within panel (0-1)": 0.0
+      }
     }
   },
   "Rotating announcement messages": [
     "Welcome! Type /mipanel for options.",
     "Be respectful — no harassment or cheating.",
     "Need help? Ask a moderator in chat."
-  ]
+  ],
+  "Wipe schedule": {
+    "Interval (auto | weekly | biweekly | monthly | custom)": "auto",
+    "Wipe day of week (server time)": "Thursday",
+    "Wipe time (HH:mm, server time)": "19:00",
+    "Custom interval days (for 'custom')": 0
+  }
 }
