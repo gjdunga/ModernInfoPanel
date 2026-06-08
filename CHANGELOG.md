@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Dates are UTC.
 
+## [1.3.0] - 2026-06-08
+
+### Added
+- **Third-party API hardening.** Panel registrations are capped (25 per plugin, 64-char
+  names), registered/updated text is bounded to 256 characters, and image URLs must be
+  `http(s)` (other schemes are rejected on `SetPanelImage` and dropped on `PanelRegister`).
+
+### Changed
+- The mutating API (`SetPanelText`, `SetPanelImage`, `ShowPanel`, `HidePanel`) is sandboxed
+  to third-party panels: it can no longer target the plugin's built-in panels, so a loaded
+  plugin can't hijack or disable `Clock`, the event icons, etc. Custom image colors now pass
+  through the same `SafeColor` validation as the config.
+
 ## [1.2.1] - 2026-06-08
 
 ### Changed

@@ -35,7 +35,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Modern Info Panel", "gjdunga", "1.2.1")]
+    [Info("Modern Info Panel", "gjdunga", "1.3.0")]
     [Description("Configurable corner HUD panels: clock, announcements, balance, points, coordinates, compass, player counts and live event indicators. Oxide + Carbon compatible.")]
     public class ModernInfoPanel : RustPlugin
     {
@@ -69,6 +69,11 @@ namespace Oxide.Plugins
         private const string PCargo = "CargoShipEvent";
         private const string PBradley = "BradleyEvent";
         private const string PRadiation = "RadiationEvent";
+
+        // Third-party API limits.
+        private const int MaxPanelsPerPlugin = 25;
+        private const int MaxPanelNameLen = 64;
+        private const int MaxTextLen = 256;
 
         private static readonly string[] TimeFormats = { "H:mm", "HH:mm", "h:mm", "h:mm tt" };
         private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
@@ -139,7 +144,7 @@ namespace Oxide.Plugins
         private sealed class Configuration
         {
             [JsonProperty("Config version")]
-            public string Version = "1.2.1";
+            public string Version = "1.3.0";
 
             [JsonProperty("General")]
             public GeneralOptions General = new GeneralOptions();
@@ -1572,13 +1577,31 @@ namespace Oxide.Plugins
                 return false;
             }
 
+            if (panelName.Length > MaxPanelNameLen)
+            {
+                PrintWarning($"PanelRegister: panel name from {pluginName} exceeds {MaxPanelNameLen} chars; rejected.");
+                return false;
+            }
+
+            List<string> owned;
+            _pluginPanels.TryGetValue(pluginName, out owned);
+            bool isNew = owned == null || !owned.Contains(panelName);
+            if (isNew && owned != null && owned.Count >= MaxPanelsPerPlugin)
+            {
+                PrintWarning($"PanelRegister: {pluginName} reached the {MaxPanelsPerPlugin}-panel limit; '{panelName}' rejected.");
+                return false;
+            }
+
+            // Sanitize untrusted content: bound text length and drop non-http(s) image URLs.
+            if (cfg.Text != null) cfg.Text.Content = ClampText(cfg.Text.Content);
+            if (cfg.Image != null && !IsValidImageUrl(cfg.Image.Url)) cfg.Image = null;
+
             cfg.ThirdParty = true;
             if (string.IsNullOrEmpty(cfg.Dock) || !_config.Docks.ContainsKey(cfg.Dock)) cfg.Dock = "BottomLeftDock";
             _config.Panels[panelName] = cfg;
             _thirdParty[panelName] = cfg;
 
-            List<string> owned;
-            if (!_pluginPanels.TryGetValue(pluginName, out owned)) _pluginPanels[pluginName] = owned = new List<string>();
+            if (owned == null) _pluginPanels[pluginName] = owned = new List<string>();
             if (!owned.Contains(panelName)) owned.Add(panelName);
 
             RebuildIndex();
@@ -1616,7 +1639,9 @@ namespace Oxide.Plugins
 
         private bool SetPanelTextImpl(string panelName, string text, string playerId)
         {
-            if (!_config.Panels.ContainsKey(panelName)) return false;
+            // The API manages third-party panels only — built-ins stay owned by the plugin.
+            if (BuiltInPanels.Contains(panelName) || !_config.Panels.ContainsKey(panelName)) return false;
+            text = ClampText(text);
             _customText[panelName] = text;
             if (playerId != null)
             {
@@ -1634,10 +1659,11 @@ namespace Oxide.Plugins
         private bool SetPanelImageImpl(string panelName, string url, string color, string playerId)
         {
             PanelConfig cfg;
-            if (!_config.Panels.TryGetValue(panelName, out cfg)) return false;
+            if (BuiltInPanels.Contains(panelName) || !_config.Panels.TryGetValue(panelName, out cfg)) return false;
+            if (!string.IsNullOrEmpty(url) && !IsValidImageUrl(url)) return false;
             if (cfg.Image == null) cfg.Image = new ImageElement();
             if (!string.IsNullOrEmpty(url)) cfg.Image.Url = url;
-            if (!string.IsNullOrEmpty(color)) _customColor[panelName] = color;
+            if (!string.IsNullOrEmpty(color)) _customColor[panelName] = SafeColor(color, "1 1 1 1");
             if (playerId != null) RefreshPlayer(playerId); else RedrawAll();
             return true;
         }
@@ -1650,7 +1676,7 @@ namespace Oxide.Plugins
         private bool SetPanelEnabled(string panelName, bool enabled, string playerId)
         {
             PanelConfig cfg;
-            if (!_config.Panels.TryGetValue(panelName, out cfg)) return false;
+            if (BuiltInPanels.Contains(panelName) || !_config.Panels.TryGetValue(panelName, out cfg)) return false;
             cfg.Enabled = enabled;
             RebuildIndex();
             if (playerId != null) RefreshPlayer(playerId); else RedrawAll();
@@ -1723,6 +1749,15 @@ namespace Oxide.Plugins
             }
             return value;
         }
+
+        // Third-party content guards: bound text length and accept only http(s) image URLs.
+        private static string ClampText(string s)
+            => string.IsNullOrEmpty(s) || s.Length <= MaxTextLen ? s : s.Substring(0, MaxTextLen);
+
+        private static bool IsValidImageUrl(string url)
+            => !string.IsNullOrEmpty(url)
+               && (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                   || url.StartsWith("https://", StringComparison.OrdinalIgnoreCase));
 
         private static double ToDouble(object o)
         {

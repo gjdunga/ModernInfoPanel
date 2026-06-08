@@ -3,7 +3,7 @@
 [![Standards](https://github.com/gjdunga/ModernInfoPanel/actions/workflows/standards.yml/badge.svg)](https://github.com/gjdunga/ModernInfoPanel/actions/workflows/standards.yml)
 [![Compile](https://github.com/gjdunga/ModernInfoPanel/actions/workflows/compile.yml/badge.svg)](https://github.com/gjdunga/ModernInfoPanel/actions/workflows/compile.yml)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
-![Version](https://img.shields.io/badge/version-1.2.1-informational)
+![Version](https://img.shields.io/badge/version-1.3.0-informational)
 
 A configurable corner-HUD information panel for Rust — a modern, security- and
 performance-minded rebuild of the classic InfoPanel concept. Four corner "docks"
@@ -114,6 +114,11 @@ bool loaded = (bool)(ModernInfoPanel?.Call("IsPlayerGUILoaded", playerId) ?? fal
 ```
 
 Panels a plugin registers are removed automatically when that plugin unloads.
+
+The API is sandboxed to a plugin's **own** panels: `SetPanelText`/`SetPanelImage`/`ShowPanel`/
+`HidePanel` only act on panels created via `PanelRegister` — the built-in panels can't be
+targeted. Registrations are capped at **25 panels per plugin**, panel names at 64 characters,
+panel text at 256 characters, and image URLs must be `http(s)`.
 
 ## Migrating from InfoPanel
 
