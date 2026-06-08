@@ -3,7 +3,7 @@
 [![Standards](https://github.com/gjdunga/ModernInfoPanel/actions/workflows/standards.yml/badge.svg)](https://github.com/gjdunga/ModernInfoPanel/actions/workflows/standards.yml)
 [![Compile](https://github.com/gjdunga/ModernInfoPanel/actions/workflows/compile.yml/badge.svg)](https://github.com/gjdunga/ModernInfoPanel/actions/workflows/compile.yml)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
-![Version](https://img.shields.io/badge/version-1.3.2-informational)
+![Version](https://img.shields.io/badge/version-1.4.0-informational)
 
 A configurable corner-HUD information panel for Rust — a modern, security- and
 performance-minded rebuild of the classic InfoPanel concept. Four corner "docks"
@@ -88,8 +88,24 @@ sections:
 
 Built-in panel names: `Clock`, `Messages`, `Balance`, `Points`, `Coordinates`,
 `Compass`, `OnlinePlayers`, `Sleepers`, `AirdropEvent`, `HelicopterEvent`,
-`ChinookEvent`, `CargoShipEvent`, `BradleyEvent`, `RadiationEvent`. `Compass`,
-`BradleyEvent`, and `RadiationEvent` ship disabled.
+`ChinookEvent`, `CargoShipEvent`, `BradleyEvent`, `RadiationEvent`, `ServerFPS`,
+`Ping`, `WipeCountdown`. `Compass`, `BradleyEvent`, `RadiationEvent`, `ServerFPS`,
+`Ping`, and `WipeCountdown` ship disabled.
+
+### Dynamic content
+
+- **Placeholders** — any panel's `Static content` and the rotating announcements may contain
+  per-viewer tokens: `{name}`, `{online}`, `{max}`, `{sleepers}`, `{grid}`, `{coords}`, `{x}`,
+  `{z}`, `{time}`, `{balance}`, `{points}`, `{server}`, `{wipe}`, `{lastwipe}`. If the
+  **PlaceholderAPI** plugin is installed, any remaining `{tokens}` are passed to it (toggle in `General`).
+- **Clickable panels** — set a panel's `Run command on click` to a console command (run as the
+  clicking player; placeholders resolved), e.g. `chat.say "/shop"`.
+- **Wipe countdown** — the `WipeCountdown` panel shows `Wipe in Xd Yh`. The cadence comes from the
+  server's browser tags (`weekly`/`biweekly`/`monthly`) unless you set `Wipe schedule → Interval`
+  (`custom` uses `Custom interval days`); the anchor is the real last **map** wipe — detected via
+  the `OnNewSave` hook (not a blueprint wipe) and estimated from the save file on first run. If the
+  cadence can't be resolved, the panel stays blank and a one-time console warning explains how to set it.
+- **Fade-in** — `General → Panel fade-in seconds` fades panels in when drawn (0 = off).
 
 > **Icons:** event/icon panels load PNGs from external `imgur` URLs by default
 > (the original InfoPanel artwork). Clients fetch them directly; swap the `Url`

@@ -22,6 +22,7 @@
   "ImportNone": "Nulla configuratio InfoPanel apud {0} inventa est.",
   "ImportFailed": "Importatio InfoPanel defecit: {0}.",
   "ImportOutside": "Via importationis intra directorium configurationis esse debet.",
+  "WipeCountdown": "Purgatio in {0}d {1}h",
   "PlayersLabel": "{0} / {1}",
   "DirN": "Septentrio",
   "DirNE": "Aquilo",
