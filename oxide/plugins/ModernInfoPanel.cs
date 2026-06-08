@@ -27,7 +27,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using Newtonsoft.Json;
 using Oxide.Core;
-using Oxide.Core.Libraries.Covalence;
 using Oxide.Core.Plugins;
 using Oxide.Game.Rust.Cui;
 using UnityEngine;
@@ -387,9 +386,8 @@ namespace Oxide.Plugins
         private void Init()
         {
             permission.RegisterPermission(PermAdmin, this);
-            // One covalence command usable from chat (/mipanel), the in-game F1
-            // console, the server console, and RCON (all as: mipanel ...).
-            cmd.AddCovalenceCommand("mipanel", this, nameof(CmdPanel));
+            // Commands are registered via the [ChatCommand]/[ConsoleCommand]
+            // attributes on the handlers below (chat + console/RCON/server console).
         }
 
         private void OnServerInitialized()
@@ -1037,32 +1035,54 @@ namespace Oxide.Plugins
 
         #region Commands
 
-        // Universal handler: works from chat (/mipanel ...), the in-game F1
-        // console, the server console, and RCON (mipanel ...). `iplayer.Object`
-        // is the BasePlayer for a real player, or null for server/RCON/console.
-        private void CmdPanel(IPlayer iplayer, string command, string[] args)
+        // Chat entry point: /mipanel ...
+        [ChatCommand("mipanel")]
+        private void ChatCmdPanel(BasePlayer player, string command, string[] args)
+        {
+            if (player == null) return;
+            RunCommand(player, false, args, s => player.ChatMessage(s));
+        }
+
+        // Console entry point: covers the in-game F1 console, the server console,
+        // and RCON (all as: mipanel ...).
+        [ConsoleCommand("mipanel")]
+        private void ConsoleCmdPanel(ConsoleSystem.Arg arg)
+        {
+            if (arg == null) return;
+            BasePlayer player = arg.Player();
+            // arg.Args is StringView[] on current Rust; use the plain FullString.
+            string full = arg.FullString;
+            string[] args = string.IsNullOrEmpty(full)
+                ? new string[0]
+                : full.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            // No player => server console / RCON, which are always authorized.
+            RunCommand(player, player == null, args, s => arg.ReplyWith(s));
+        }
+
+        // Shared logic. `reply` adapts output to chat or console; when
+        // `authorizedConsole` is true (server console / RCON) admin actions are allowed.
+        private void RunCommand(BasePlayer player, bool authorizedConsole, string[] args, Action<string> reply)
         {
             string sub = args != null && args.Length > 0 ? args[0].ToLowerInvariant() : null;
+            string id = player?.UserIDString;
 
-            // 'reload' is the one action that makes sense from any context.
             if (sub == "reload")
             {
-                if (!IsAdmin(iplayer)) { iplayer.Reply(L("NoPermission", iplayer.Id)); return; }
+                bool ok = authorizedConsole || (player != null && permission.UserHasPermission(id, PermAdmin));
+                if (!ok) { reply(L("NoPermission", id)); return; }
                 DoReload();
-                iplayer.Reply(L("Reloaded", iplayer.Id));
+                reply(L("Reloaded", id));
                 return;
             }
 
-            BasePlayer player = iplayer.Object as BasePlayer;
             if (player == null)
             {
                 // Server console / RCON: the remaining subcommands are per-player.
-                iplayer.Reply(L("PlayerOnly", iplayer.Id));
+                reply(L("PlayerOnly", id));
                 return;
             }
 
-            string id = player.UserIDString;
-            if (sub == null) { ShowHelp(iplayer); return; }
+            if (sub == null) { reply(HelpText(id)); return; }
 
             switch (sub)
             {
@@ -1070,7 +1090,7 @@ namespace Oxide.Plugins
                     Prefs(id).Hidden = true;
                     SaveStoredData();
                     HideFor(id);
-                    iplayer.Reply(L("PanelHidden", id));
+                    reply(L("PanelHidden", id));
                     break;
 
                 case "show":
@@ -1078,46 +1098,39 @@ namespace Oxide.Plugins
                     SaveStoredData();
                     PlayerView view;
                     if (_views.TryGetValue(id, out view)) Draw(view);
-                    iplayer.Reply(L("PanelShown", id));
+                    reply(L("PanelShown", id));
                     break;
 
                 case "clock":
-                    HandleClock(iplayer, id, args);
+                    HandleClock(id, args, reply);
                     break;
 
                 case "timeformat":
-                    HandleTimeFormat(iplayer, id, args);
+                    HandleTimeFormat(id, args, reply);
                     break;
 
                 default:
-                    iplayer.Reply(L("InvalidArgs", id));
+                    reply(L("InvalidArgs", id));
                     break;
             }
         }
 
-        private bool IsAdmin(IPlayer iplayer)
-            => iplayer.IsServer || iplayer.IsAdmin || permission.UserHasPermission(iplayer.Id, PermAdmin);
-
-        private void ShowHelp(IPlayer iplayer)
+        private string HelpText(string id) => string.Join("\n", new[]
         {
-            string id = iplayer.Id;
-            iplayer.Reply(string.Join("\n", new[]
-            {
-                L("HelpTitle", id), L("HelpToggle", id), L("HelpClockGame", id),
-                L("HelpClockServer", id), L("HelpTimeFormat", id)
-            }));
-        }
+            L("HelpTitle", id), L("HelpToggle", id), L("HelpClockGame", id),
+            L("HelpClockServer", id), L("HelpTimeFormat", id)
+        });
 
-        private void HandleClock(IPlayer iplayer, string id, string[] args)
+        private void HandleClock(string id, string[] args, Action<string> reply)
         {
-            if (args.Length < 2) { iplayer.Reply(L("InvalidArgs", id)); return; }
+            if (args.Length < 2) { reply(L("InvalidArgs", id)); return; }
 
             if (string.Equals(args[1], "game", StringComparison.OrdinalIgnoreCase))
             {
                 Prefs(id).ClockMode = "game";
                 SaveStoredData();
                 RefreshPlayer(id);
-                iplayer.Reply(L("ClockGameSet", id));
+                reply(L("ClockGameSet", id));
             }
             else if (string.Equals(args[1], "server", StringComparison.OrdinalIgnoreCase))
             {
@@ -1131,18 +1144,18 @@ namespace Oxide.Plugins
                         p.ClockOffset = offset;
                         SaveStoredData();
                         RefreshPlayer(id);
-                        iplayer.Reply(L("ClockOffsetSet", id, offset));
+                        reply(L("ClockOffsetSet", id, offset));
                         return;
                     }
                 }
                 SaveStoredData();
                 RefreshPlayer(id);
-                iplayer.Reply(L("ClockServerSet", id));
+                reply(L("ClockServerSet", id));
             }
-            else iplayer.Reply(L("InvalidArgs", id));
+            else reply(L("InvalidArgs", id));
         }
 
-        private void HandleTimeFormat(IPlayer iplayer, string id, string[] args)
+        private void HandleTimeFormat(string id, string[] args, Action<string> reply)
         {
             if (args.Length < 2)
             {
@@ -1150,7 +1163,7 @@ namespace Oxide.Plugins
                 for (int i = 0; i < TimeFormats.Length; i++)
                     lines.Add(L("TimeFormatEntry", id, i, DateTime.Now.ToString(TimeFormats[i], Inv)));
                 lines.Add(L("TimeFormatUsage", id));
-                iplayer.Reply(string.Join("\n", lines));
+                reply(string.Join("\n", lines));
                 return;
             }
 
@@ -1160,9 +1173,9 @@ namespace Oxide.Plugins
                 Prefs(id).ClockFormat = TimeFormats[index];
                 SaveStoredData();
                 RefreshPlayer(id);
-                iplayer.Reply(L("TimeFormatSet", id));
+                reply(L("TimeFormatSet", id));
             }
-            else iplayer.Reply(L("TimeFormatUsage", id));
+            else reply(L("TimeFormatUsage", id));
         }
 
         private void DoReload()
