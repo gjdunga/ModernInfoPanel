@@ -971,7 +971,7 @@ namespace Oxide.Plugins
         private void ScanType<T>(string ev) where T : BaseEntity
         {
             if (!PanelEnabled(ev)) return;
-            foreach (T e in UnityEngine.Object.FindObjectsOfType<T>())
+            foreach (T e in UnityEngine.Object.FindObjectsByType<T>(UnityEngine.FindObjectsSortMode.None))
                 if (e != null && !e.IsDestroyed) _eventEntities[ev].Add(e);
         }
 
