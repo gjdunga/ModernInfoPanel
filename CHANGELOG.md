@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Dates are UTC.
 
+## [1.1.1] - 2026-06-08
+
+### Changed
+- The InfoPanel import now writes a full report — docks/panels mapped, panels
+  skipped, and a coverage note — to the server console and a logfile under
+  `oxide/logs/ModernInfoPanel/`, on both first-load auto-import and `mipanel import`.
+
+### Fixed
+- Import failures no longer surface raw parser details in chat; players see the
+  generic failure message while the full error is logged server-side only.
+- Dock layout clamps cumulative panel widths, so a misconfigured dock can no longer
+  produce overlapping or out-of-bounds panels.
+- Hardened internal panel lookups to use safe lookups instead of direct indexing.
+
 ## [1.1.0] - 2026-06-08
 
 ### Added
