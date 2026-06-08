@@ -35,7 +35,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Modern Info Panel", "gjdunga", "1.3.0")]
+    [Info("Modern Info Panel", "gjdunga", "1.3.1")]
     [Description("Configurable corner HUD panels: clock, announcements, balance, points, coordinates, compass, player counts and live event indicators. Oxide + Carbon compatible.")]
     public class ModernInfoPanel : RustPlugin
     {
@@ -144,7 +144,7 @@ namespace Oxide.Plugins
         private sealed class Configuration
         {
             [JsonProperty("Config version")]
-            public string Version = "1.3.0";
+            public string Version = "1.3.1";
 
             [JsonProperty("General")]
             public GeneralOptions General = new GeneralOptions();
@@ -490,6 +490,14 @@ namespace Oxide.Plugins
         {
             Puts(text);
             LogToFile("import", text, this);
+        }
+
+        // Emit an operator-facing problem to the server console and a durable logfile
+        // (oxide/logs/ModernInfoPanel/) — used for rejected/malformed third-party input.
+        private void LogProblem(string text)
+        {
+            PrintWarning(text);
+            LogToFile("errors", text, this);
         }
 
         private static void ImportDock(JObject src, DockConfig dock)
@@ -1594,7 +1602,11 @@ namespace Oxide.Plugins
 
             // Sanitize untrusted content: bound text length and drop non-http(s) image URLs.
             if (cfg.Text != null) cfg.Text.Content = ClampText(cfg.Text.Content);
-            if (cfg.Image != null && !IsValidImageUrl(cfg.Image.Url)) cfg.Image = null;
+            if (cfg.Image != null && !IsValidImageUrl(cfg.Image.Url))
+            {
+                LogProblem($"PanelRegister: '{panelName}' from {pluginName} has a non-http(s) image URL ({ClampText(cfg.Image.Url)}); image dropped.");
+                cfg.Image = null;
+            }
 
             cfg.ThirdParty = true;
             if (string.IsNullOrEmpty(cfg.Dock) || !_config.Docks.ContainsKey(cfg.Dock)) cfg.Dock = "BottomLeftDock";
@@ -1660,7 +1672,11 @@ namespace Oxide.Plugins
         {
             PanelConfig cfg;
             if (BuiltInPanels.Contains(panelName) || !_config.Panels.TryGetValue(panelName, out cfg)) return false;
-            if (!string.IsNullOrEmpty(url) && !IsValidImageUrl(url)) return false;
+            if (!string.IsNullOrEmpty(url) && !IsValidImageUrl(url))
+            {
+                LogProblem($"SetPanelImage: rejected non-http(s) URL ({ClampText(url)}) for panel '{panelName}'.");
+                return false;
+            }
             if (cfg.Image == null) cfg.Image = new ImageElement();
             if (!string.IsNullOrEmpty(url)) cfg.Image.Url = url;
             if (!string.IsNullOrEmpty(color)) _customColor[panelName] = SafeColor(color, "1 1 1 1");

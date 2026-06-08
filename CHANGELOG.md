@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Dates are UTC.
 
+## [1.3.1] - 2026-06-08
+
+### Added
+- Rejected or malformed third-party image URLs are now logged. `PanelRegister` (image
+  dropped) and `SetPanelImage` (call rejected) emit a warning to the server console **and**
+  a durable logfile under `oxide/logs/ModernInfoPanel/`, naming the plugin, panel, and URL.
+
 ## [1.3.0] - 2026-06-08
 
 ### Added
