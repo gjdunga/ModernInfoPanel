@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Dates are UTC.
 
+## [1.2.1] - 2026-06-08
+
+### Changed
+- **Persistence is debounced.** Player preference changes (`hide`/`show`, clock mode/offset,
+  time format) now mark the data dirty and flush at most about once a minute (plus on
+  `OnServerSave` and unload), instead of writing the whole data file on every command — so
+  command spam can no longer drive a disk write per keystroke.
+- A light **per-player cooldown** (1s) is applied to the state-changing chat/console
+  subcommands; commands sent faster than that are silently ignored.
+
+### Fixed
+- **No-op coalescing:** `hide`/`show`/`clock`/`timeformat` only persist and redraw when the
+  value actually changes, eliminating redundant full-UI rebuilds from repeated commands.
+- The stored-data file is bounded: player entries that match the default behaviour are pruned
+  on flush, so it can't grow without limit.
+
 ## [1.2.0] - 2026-06-08
 
 ### Added
