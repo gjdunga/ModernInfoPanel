@@ -9,8 +9,8 @@
     throwaway.
 
     Supply the reference assemblies first (one-time):
-      tools/fetch-references.sh --managed-only         (Linux/macOS)
-      tools/fetch-references.ps1 -ManagedOnly          (Windows)
+      tools/fetch-references.sh   (managed-only)        (Linux/macOS)
+      tools/fetch-references.ps1 -ManagedOnly           (Windows)
     or point at an existing server's Managed folder:
       dotnet build build/ModernInfoPanel.csproj -p:ManagedDir=/path/to/RustDedicated_Data/Managed
   -->

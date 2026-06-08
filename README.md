@@ -5,21 +5,33 @@
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
 ![Version](https://img.shields.io/badge/version-1.0.0-informational)
 
-A lightweight, fully configurable on-screen information panel for Rust — a clock,
-a live player counter, and rotating server announcements — built on Rust's CUI.
-**Compatible with both Oxide and Carbon.**
+A configurable corner-HUD information panel for Rust — a modern, security- and
+performance-minded rebuild of the classic InfoPanel concept. Four corner "docks"
+host individually configurable panels: a clock, rotating announcements,
+balance/points read-outs, coordinates, a compass, online/sleeper counts, and live
+event indicators. **Compatible with both Oxide and Carbon.**
 
 ## Features
 
-- **Clock block** — real-world server time or in-game time, in any .NET date/time format.
-- **Players block** — live `online / max` player counter.
-- **Rotating announcements** — cycle through any number of messages on a configurable interval.
-- **Fully configurable blocks** — position (anchors), size, colors, font size, and alignment per block.
-- **Per-player toggle** — players can show/hide their own panel with `/infopanel`.
-- **Permission-gated or open** — show to everyone, or restrict to a permission.
-- **Localized** — ships in 8 languages; all plugin text goes through the Oxide lang API.
-- **Lightweight** — only dynamic labels are redrawn each tick, so static backgrounds don't flicker.
-- **No Reflection** — uMod-safe; uses only the shared Rust/CUI APIs.
+- **Four corner docks** — top-left, top-right, bottom-left, bottom-right; each
+  with its own edge, size, and offset. Panels tile within a dock by order.
+- **Clock** — in-game or server time, per-player offset, and selectable format.
+- **Rotating announcements** — cycle messages in `normal` or `random` order.
+- **Economy read-outs** — `Balance` (via Economics) and `Points` (via ServerRewards),
+  shown only when those plugins are installed.
+- **Coordinates** — X/Z, map grid, or both.
+- **Compass** — eight-point text direction (localized) or raw degrees.
+- **Player counts** — live `online / max` and sleeper counters.
+- **Live event indicators** — airdrop, patrol helicopter, chinook, cargo ship,
+  bradley, and radiation icons that recolor while the event is active.
+- **Per-player control** — players hide/show their panel and tune their clock with
+  `/ipanel`; their choices persist across reconnects.
+- **Per-panel permissions** — optionally gate any panel behind a permission.
+- **Reflection-free developer API** — other plugins can register, update, show,
+  hide, and remove their own panels.
+- **Localized** — ships in 8 languages; all chat text goes through the Oxide lang API.
+- **Lightweight** — only changed labels/icons are pushed each tick (value-cached
+  per player), so backgrounds never flicker and idle ticks send nothing.
 
 ## Installation
 
@@ -34,47 +46,67 @@ See [INSTALL.md](INSTALL.md) for updating, permissions, and troubleshooting.
 
 | Permission | Description |
 | --- | --- |
-| `moderninfopanel.use` | See and toggle the panel (only enforced when it is **not** shown to everyone). |
-| `moderninfopanel.admin` | Reload the configuration via `/infopanel reload` and the console command. |
+| `moderninfopanel.admin` | Reload the configuration via `/ipanel reload` and the `moderninfopanel.reload` console command. |
+| `moderninfopanel.<suffix>` | Dynamic — registered for any panel that sets a `Permission suffix`; only holders see that panel. |
 
 ## Commands
 
 | Command | Arguments | Description |
 | --- | --- | --- |
-| `/infopanel` | `[on\|off\|toggle\|reload]` | Toggle your panel. `reload` (admin) reloads config and redraws all panels. |
-| `moderninfopanel.reload` | — | Console command (admin) to reload the config and redraw all panels. |
+| `/ipanel` | *(none)* | Show the command help. |
+| `/ipanel` | `hide` \| `show` | Hide or show your panel (persists across reconnects). |
+| `/ipanel` | `clock game` | Use in-game time. |
+| `/ipanel` | `clock server [offset]` | Use server time; optional hour offset `-23..23`. |
+| `/ipanel` | `timeformat [index]` | List or pick a clock format. |
+| `/ipanel` | `reload` | **Admin** — reload config and redraw all panels. |
+| `/infopanel` | — | Alias of `/ipanel`. |
+| `moderninfopanel.reload` | — | **Admin** console command — reload config and redraw all panels. |
 
 ## Configuration
 
-A default `oxide/config/ModernInfoPanel.json` is written on first load:
+A default `oxide/config/ModernInfoPanel.json` is written on first load. It has four
+sections:
 
-```json
-{
-  "Update interval (seconds)": 1.0,
-  "Rotator interval (seconds)": 8.0,
-  "Show panel to everyone (no permission required)": true,
-  "Clock mode (realtime | gametime)": "realtime",
-  "Clock format (.NET date/time format string)": "HH:mm",
-  "Rotating announcement messages": [
-    "Welcome! Type /infopanel to toggle this panel.",
-    "Be respectful - no harassment or cheating.",
-    "Need help? Ask a moderator in chat."
-  ],
-  "Blocks": [
-    { "Id": "clock",   "Type (clock | players | rotator | text)": "clock",   "...": "see file" },
-    { "Id": "players", "Type (clock | players | rotator | text)": "players", "...": "see file" },
-    { "Id": "rotator", "Type (clock | players | rotator | text)": "rotator", "...": "see file" }
-  ]
-}
+- **General** — coordinate format (`0` X/Z, `1` grid, `2` both), compass as text vs
+  degrees, message rotation order, and whether panels show by default.
+- **Docks** — `TopLeftDock`, `TopRightDock`, `BottomLeftDock`, `BottomRightDock`,
+  each with an `Enabled` flag, horizontal/vertical edge, edge offsets, size, and
+  background color.
+- **Panels** — each panel sets `Enabled`, its `Dock`, `Order`, `Width within dock`,
+  alignment, background color, an optional `Permission suffix`, a `Refresh interval`
+  (`0` = static/event-driven), and an optional `Image` and/or `Text` element.
+  Some panels carry extra `Settings` (e.g. the clock's `Mode`/`Format`, or an event
+  icon's `ActiveColor`/`InactiveColor`).
+- **Rotating announcement messages** — the list shown by the `Messages` panel.
+
+Built-in panel names: `Clock`, `Messages`, `Balance`, `Points`, `Coordinates`,
+`Compass`, `OnlinePlayers`, `Sleepers`, `AirdropEvent`, `HelicopterEvent`,
+`ChinookEvent`, `CargoShipEvent`, `BradleyEvent`, `RadiationEvent`. `Compass`,
+`BradleyEvent`, and `RadiationEvent` ship disabled.
+
+> **Icons:** event/icon panels load PNGs from external `imgur` URLs by default
+> (the original InfoPanel artwork). Clients fetch them directly; swap the `Url`
+> values for self-hosted images if you prefer not to depend on a third party.
+
+Edit the file and run `/ipanel reload` (or `o.reload ModernInfoPanel`) to apply.
+
+### Developer API
+
+Other plugins can manage their own panels without any Reflection:
+
+```csharp
+// Register a panel (json is a serialized panel config like one entry under "Panels")
+ModernInfoPanel?.Call("PanelRegister", Title, "MyPanel", json);
+ModernInfoPanel?.Call("SetPanelText", "MyPanel", "Hello", playerIdOrNull);
+ModernInfoPanel?.Call("SetPanelImage", "MyPanel", url, "1 1 1 1", playerIdOrNull);
+ModernInfoPanel?.Call("ShowPanel", "MyPanel", playerIdOrNull);
+ModernInfoPanel?.Call("HidePanel", "MyPanel", playerIdOrNull);
+ModernInfoPanel?.Call("RefreshPanel", "MyPanel", playerIdOrNull);
+ModernInfoPanel?.Call("PanelUnregister", Title, "MyPanel");
+bool loaded = (bool)(ModernInfoPanel?.Call("IsPlayerGUILoaded", playerId) ?? false);
 ```
 
-- **Block types:** `clock`, `players`, `rotator`, `text`. A `text` block shows its
-  `Static text`, or the localized welcome message when that is left empty.
-- **Anchors** are screen fractions `"x y"` from `0 0` (bottom-left) to `1 1` (top-right).
-- **Colors** are `"R G B A"` in the `0`–`1` range.
-- **Clock mode** `gametime` uses the in-game day/night clock; `realtime` uses the host clock.
-
-Edit the file and run `/infopanel reload` (or `o.reload ModernInfoPanel`) to apply.
+Panels a plugin registers are removed automatically when that plugin unloads.
 
 ## Localization
 
@@ -89,7 +121,8 @@ and share identical keys and placeholders. Edit a locale to customize the wordin
 
 ## Credits & License
 
-Created and maintained by **Gabriel Dungan (DunganSoft Technologies)** — uMod handle `gjdunga`.
+A modern rebuild inspired by the original **InfoPanel** (by Gonzi). Rebuilt and
+maintained by **Gabriel Dungan (DunganSoft Technologies)** — uMod handle `gjdunga`.
 
 Licensed under **GPL-3.0** — see [LICENSE](LICENSE). Part of the
 [DunganSoft Plugin Standard](https://github.com/gjdunga/rust-plugin-standard) portfolio.

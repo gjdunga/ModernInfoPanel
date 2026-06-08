@@ -1,0 +1,43 @@
+name: Compile
+
+on:
+  push:
+    branches: [ main ]
+    paths: [ 'oxide/plugins/**', 'build/**', 'tools/**', '.github/workflows/compile.yml' ]
+  pull_request:
+    paths: [ 'oxide/plugins/**', 'build/**', 'tools/**', '.github/workflows/compile.yml' ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: compile-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compile:
+    name: Type-check against Oxide/Rust assemblies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - id: key
+        run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+      - id: refs-cache
+        uses: actions/cache@v4
+        with:
+          path: references/RustDedicated_Data/Managed
+          key: rust-managed-${{ runner.os }}-${{ steps.key.outputs.week }}
+      - if: steps.refs-cache.outputs.cache-hit != 'true'
+        run: |
+          sudo dpkg --add-architecture i386
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends lib32gcc-s1 ca-certificates
+      - if: steps.refs-cache.outputs.cache-hit != 'true'
+        run: |
+          chmod +x tools/fetch-references.sh
+          tools/fetch-references.sh --managed-only
+      - run: dotnet build build/ModernInfoPanel.csproj -c Release --nologo

@@ -1,0 +1,23 @@
+# Build outputs (the shipped artifact is the raw .cs; DLLs are throwaway)
+build/bin/
+build/obj/
+bin/
+obj/
+*.dll
+*.pdb
+
+# Downloaded reference assemblies (fetched via tools/fetch-references.sh)
+references/
+
+# Oxide/Carbon runtime data (never committed)
+oxide/data/
+carbon/data/
+
+# Editor / OS noise
+.vs/
+.vscode/
+.idea/
+*.user
+*.swp
+.DS_Store
+Thumbs.db
