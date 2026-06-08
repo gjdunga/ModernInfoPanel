@@ -27,7 +27,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using Newtonsoft.Json;
 using Oxide.Core;
-using Oxide.Core.Libraries;
+using Oxide.Core.Libraries.Covalence;
 using Oxide.Core.Plugins;
 using Oxide.Game.Rust.Cui;
 using UnityEngine;
@@ -74,7 +74,7 @@ namespace Oxide.Plugins
 
         private Configuration _config;
         private StoredData _data;
-        private Timer.TimerInstance _tickTimer;
+        private Timer _tickTimer;
         private bool _ready;
         private long _tick;
         private int _messageIndex;
@@ -257,7 +257,7 @@ namespace Oxide.Plugins
             {
                 Messages = new List<string>
                 {
-                    "Welcome! Type /ipanel for options.",
+                    "Welcome! Type /mipanel for options.",
                     "Be respectful — no harassment or cheating.",
                     "Need help? Ask a moderator in chat."
                 },
@@ -351,10 +351,10 @@ namespace Oxide.Plugins
             lang.RegisterMessages(new Dictionary<string, string>
             {
                 ["HelpTitle"] = "<color=#e2a44a>Info Panel</color> commands:",
-                ["HelpToggle"] = "<color=#e2a44a>/ipanel hide|show</color> — hide or show your panel.",
-                ["HelpClockGame"] = "<color=#e2a44a>/ipanel clock game</color> — use in-game time.",
-                ["HelpClockServer"] = "<color=#e2a44a>/ipanel clock server [offset]</color> — use server time (offset -23..23).",
-                ["HelpTimeFormat"] = "<color=#e2a44a>/ipanel timeformat [index]</color> — change the clock format.",
+                ["HelpToggle"] = "<color=#e2a44a>/mipanel hide|show</color> — hide or show your panel.",
+                ["HelpClockGame"] = "<color=#e2a44a>/mipanel clock game</color> — use in-game time.",
+                ["HelpClockServer"] = "<color=#e2a44a>/mipanel clock server [offset]</color> — use server time (offset -23..23).",
+                ["HelpTimeFormat"] = "<color=#e2a44a>/mipanel timeformat [index]</color> — change the clock format.",
                 ["PanelShown"] = "Info panel is now <color=#9f9>shown</color>.",
                 ["PanelHidden"] = "Info panel is now <color=#f99>hidden</color>.",
                 ["ClockGameSet"] = "Clock set to in-game time.",
@@ -363,9 +363,10 @@ namespace Oxide.Plugins
                 ["TimeFormatList"] = "Available time formats:",
                 ["TimeFormatEntry"] = "[{0}] {1}",
                 ["TimeFormatSet"] = "Clock format updated.",
-                ["TimeFormatUsage"] = "Usage: /ipanel timeformat <index>",
-                ["InvalidArgs"] = "Invalid arguments. Type <color=#e2a44a>/ipanel</color> for help.",
+                ["TimeFormatUsage"] = "Usage: /mipanel timeformat <index>",
+                ["InvalidArgs"] = "Invalid arguments. Type <color=#e2a44a>/mipanel</color> for help.",
                 ["NoPermission"] = "You don't have permission to do that.",
+                ["PlayerOnly"] = "Only the <color=#e2a44a>reload</color> subcommand can be used from the console; the rest are per-player. Run them in-game.",
                 ["Reloaded"] = "Modern Info Panel reloaded.",
                 ["PlayersLabel"] = "{0} / {1}",
                 ["DirN"] = "North", ["DirNE"] = "Northeast", ["DirE"] = "East", ["DirSE"] = "Southeast",
@@ -379,11 +380,6 @@ namespace Oxide.Plugins
             return args != null && args.Length > 0 ? string.Format(msg, args) : msg;
         }
 
-        private void Reply(BasePlayer player, string key, params object[] args)
-        {
-            if (player != null) player.ChatMessage(L(key, player.UserIDString, args));
-        }
-
         #endregion
 
         #region Lifecycle hooks
@@ -391,9 +387,9 @@ namespace Oxide.Plugins
         private void Init()
         {
             permission.RegisterPermission(PermAdmin, this);
-            cmd.AddChatCommand("ipanel", this, nameof(CmdInfoPanel));
-            cmd.AddChatCommand("infopanel", this, nameof(CmdInfoPanel));
-            cmd.AddConsoleCommand("moderninfopanel.reload", this, nameof(CcmdReload));
+            // One covalence command usable from chat (/mipanel), the in-game F1
+            // console, the server console, and RCON (all as: mipanel ...).
+            cmd.AddCovalenceCommand("mipanel", this, nameof(CmdPanel));
         }
 
         private void OnServerInitialized()
@@ -421,7 +417,7 @@ namespace Oxide.Plugins
             foreach (BasePlayer player in BasePlayer.activePlayerList)
                 Register(player);
 
-            _tickTimer = timer.Every(1f, OnTick);
+            _tickTimer = timer.Repeat(1f, 0, OnTick);
             _ready = true;
         }
 
@@ -1041,20 +1037,40 @@ namespace Oxide.Plugins
 
         #region Commands
 
-        private void CmdInfoPanel(BasePlayer player, string command, string[] args)
+        // Universal handler: works from chat (/mipanel ...), the in-game F1
+        // console, the server console, and RCON (mipanel ...). `iplayer.Object`
+        // is the BasePlayer for a real player, or null for server/RCON/console.
+        private void CmdPanel(IPlayer iplayer, string command, string[] args)
         {
-            if (player == null) return;
+            string sub = args != null && args.Length > 0 ? args[0].ToLowerInvariant() : null;
+
+            // 'reload' is the one action that makes sense from any context.
+            if (sub == "reload")
+            {
+                if (!IsAdmin(iplayer)) { iplayer.Reply(L("NoPermission", iplayer.Id)); return; }
+                DoReload();
+                iplayer.Reply(L("Reloaded", iplayer.Id));
+                return;
+            }
+
+            BasePlayer player = iplayer.Object as BasePlayer;
+            if (player == null)
+            {
+                // Server console / RCON: the remaining subcommands are per-player.
+                iplayer.Reply(L("PlayerOnly", iplayer.Id));
+                return;
+            }
+
             string id = player.UserIDString;
+            if (sub == null) { ShowHelp(iplayer); return; }
 
-            if (args == null || args.Length == 0) { ShowHelp(player); return; }
-
-            switch (args[0].ToLowerInvariant())
+            switch (sub)
             {
                 case "hide":
                     Prefs(id).Hidden = true;
                     SaveStoredData();
                     HideFor(id);
-                    Reply(player, "PanelHidden");
+                    iplayer.Reply(L("PanelHidden", id));
                     break;
 
                 case "show":
@@ -1062,50 +1078,46 @@ namespace Oxide.Plugins
                     SaveStoredData();
                     PlayerView view;
                     if (_views.TryGetValue(id, out view)) Draw(view);
-                    Reply(player, "PanelShown");
-                    break;
-
-                case "reload":
-                    if (!permission.UserHasPermission(id, PermAdmin)) { Reply(player, "NoPermission"); return; }
-                    DoReload();
-                    Reply(player, "Reloaded");
+                    iplayer.Reply(L("PanelShown", id));
                     break;
 
                 case "clock":
-                    HandleClock(player, args);
+                    HandleClock(iplayer, id, args);
                     break;
 
                 case "timeformat":
-                    HandleTimeFormat(player, args);
+                    HandleTimeFormat(iplayer, id, args);
                     break;
 
                 default:
-                    Reply(player, "InvalidArgs");
+                    iplayer.Reply(L("InvalidArgs", id));
                     break;
             }
         }
 
-        private void ShowHelp(BasePlayer player)
+        private bool IsAdmin(IPlayer iplayer)
+            => iplayer.IsServer || iplayer.IsAdmin || permission.UserHasPermission(iplayer.Id, PermAdmin);
+
+        private void ShowHelp(IPlayer iplayer)
         {
-            string id = player.UserIDString;
-            player.ChatMessage(string.Join("\n", new[]
+            string id = iplayer.Id;
+            iplayer.Reply(string.Join("\n", new[]
             {
                 L("HelpTitle", id), L("HelpToggle", id), L("HelpClockGame", id),
                 L("HelpClockServer", id), L("HelpTimeFormat", id)
             }));
         }
 
-        private void HandleClock(BasePlayer player, string[] args)
+        private void HandleClock(IPlayer iplayer, string id, string[] args)
         {
-            string id = player.UserIDString;
-            if (args.Length < 2) { Reply(player, "InvalidArgs"); return; }
+            if (args.Length < 2) { iplayer.Reply(L("InvalidArgs", id)); return; }
 
             if (string.Equals(args[1], "game", StringComparison.OrdinalIgnoreCase))
             {
                 Prefs(id).ClockMode = "game";
                 SaveStoredData();
                 RefreshPlayer(id);
-                Reply(player, "ClockGameSet");
+                iplayer.Reply(L("ClockGameSet", id));
             }
             else if (string.Equals(args[1], "server", StringComparison.OrdinalIgnoreCase))
             {
@@ -1119,27 +1131,26 @@ namespace Oxide.Plugins
                         p.ClockOffset = offset;
                         SaveStoredData();
                         RefreshPlayer(id);
-                        Reply(player, "ClockOffsetSet", offset);
+                        iplayer.Reply(L("ClockOffsetSet", id, offset));
                         return;
                     }
                 }
                 SaveStoredData();
                 RefreshPlayer(id);
-                Reply(player, "ClockServerSet");
+                iplayer.Reply(L("ClockServerSet", id));
             }
-            else Reply(player, "InvalidArgs");
+            else iplayer.Reply(L("InvalidArgs", id));
         }
 
-        private void HandleTimeFormat(BasePlayer player, string[] args)
+        private void HandleTimeFormat(IPlayer iplayer, string id, string[] args)
         {
-            string id = player.UserIDString;
             if (args.Length < 2)
             {
                 var lines = new List<string> { L("TimeFormatList", id) };
                 for (int i = 0; i < TimeFormats.Length; i++)
                     lines.Add(L("TimeFormatEntry", id, i, DateTime.Now.ToString(TimeFormats[i], Inv)));
                 lines.Add(L("TimeFormatUsage", id));
-                player.ChatMessage(string.Join("\n", lines));
+                iplayer.Reply(string.Join("\n", lines));
                 return;
             }
 
@@ -1149,18 +1160,9 @@ namespace Oxide.Plugins
                 Prefs(id).ClockFormat = TimeFormats[index];
                 SaveStoredData();
                 RefreshPlayer(id);
-                Reply(player, "TimeFormatSet");
+                iplayer.Reply(L("TimeFormatSet", id));
             }
-            else Reply(player, "TimeFormatUsage");
-        }
-
-        private void CcmdReload(ConsoleSystem.Arg arg)
-        {
-            BasePlayer player = arg?.Player();
-            if (player != null && !permission.UserHasPermission(player.UserIDString, PermAdmin)) return;
-            DoReload();
-            if (player != null) Reply(player, "Reloaded");
-            else Puts("Configuration reloaded; panels redrawn.");
+            else iplayer.Reply(L("TimeFormatUsage", id));
         }
 
         private void DoReload()

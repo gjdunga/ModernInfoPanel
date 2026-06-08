@@ -18,10 +18,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Dates are UTC.
   `Compass` (text or degrees), `OnlinePlayers`, `Sleepers`, and live event
   indicators `AirdropEvent`, `HelicopterEvent`, `ChinookEvent`, `CargoShipEvent`,
   `BradleyEvent`, and `RadiationEvent`.
-- Per-player controls via `/ipanel` (and `/infopanel` alias): `hide`/`show`,
-  `clock game`, `clock server [offset]`, `timeformat [index]`, and admin `reload`;
-  choices persist across reconnects.
-- Console command `moderninfopanel.reload` and permission `moderninfopanel.admin`;
+- A single universal `mipanel` command, registered via covalence so it runs from
+  chat (`/mipanel …`), the in-game F1 console, the **server console**, and **RCON**
+  (consoles use `mipanel …`): `hide`/`show`, `clock game`, `clock server [offset]`,
+  `timeformat [index]`, and admin/server `reload`. Per-player choices persist across
+  reconnects; `reload` works from any context.
+- Permission `moderninfopanel.admin` (server console/RCON are always authorized);
   dynamic per-panel permissions (`moderninfopanel.<suffix>`).
 - Reflection-free developer API: `PanelRegister`, `PanelUnregister`,
   `SetPanelText`, `SetPanelImage`, `ShowPanel`, `HidePanel`, `RefreshPanel`,

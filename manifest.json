@@ -12,24 +12,14 @@
   "permissions": [
     {
       "name": "moderninfopanel.admin",
-      "description": "Allows reloading the configuration via /ipanel reload and the moderninfopanel.reload console command."
+      "description": "Allows reloading the configuration via 'mipanel reload' from chat, console, or RCON (the server console and RCON are always authorized)."
     }
   ],
   "commands": [
     {
-      "command": "ipanel",
+      "command": "mipanel",
       "arguments": "[hide|show|clock game|clock server [offset]|timeformat [index]|reload]",
-      "description": "Open the help menu and manage your panel (hide/show, clock mode/offset, time format); 'reload' is admin-only."
-    },
-    {
-      "command": "infopanel",
-      "arguments": "[hide|show|clock game|clock server [offset]|timeformat [index]|reload]",
-      "description": "Alias of /ipanel."
-    },
-    {
-      "command": "moderninfopanel.reload",
-      "arguments": "",
-      "description": "Console command (admin) to reload the configuration and redraw all panels."
+      "description": "Universal command (chat /mipanel, in-game F1 console, server console, and RCON as 'mipanel ...'). Manage your panel (hide/show, clock mode/offset, time format); 'reload' is admin/server-only and works from any context."
     }
   ],
   "compatibility": {
