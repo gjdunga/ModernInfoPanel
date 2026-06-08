@@ -35,7 +35,7 @@ event indicators. **Compatible with both Oxide and Carbon.**
 
 ## Installation
 
-1. Download `ModernInfoPanel.cs` from the [latest release](https://github.com/gjdunga/ModernInfoPanel/releases).
+1. Download `ModernInfoPanel.cs` from the [v1.0.0 release](https://github.com/gjdunga/ModernInfoPanel/releases/tag/v1.0.0).
 2. Drop it into `oxide/plugins/` (Oxide) or `carbon/plugins/` (Carbon).
 3. It compiles and loads automatically and writes a default config to
    `oxide/config/ModernInfoPanel.json` (or `carbon/configs/`) on first load.
