@@ -21,6 +21,7 @@
   "ImportOk": "Configuração do InfoPanel importada — {0}.",
   "ImportNone": "Nenhuma configuração do InfoPanel encontrada em {0}.",
   "ImportFailed": "Falha ao importar o InfoPanel: {0}.",
+  "ImportOutside": "O caminho de importação deve estar dentro do diretório de configuração.",
   "PlayersLabel": "{0} / {1}",
   "DirN": "Norte",
   "DirNE": "Nordeste",

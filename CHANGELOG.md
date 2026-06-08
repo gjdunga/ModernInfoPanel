@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Dates are UTC.
 
+## [1.2.0] - 2026-06-08
+
+### Added
+- Event indicators now also recognize **modded subclasses** of the vanilla event
+  entities (airdrop plane, patrol helicopter, chinook, cargo ship, bradley) via a
+  secondary match, so custom variants still drive their indicator. Vanilla detection
+  is unchanged (exact-type fast path).
+
+### Changed
+- `mipanel import` is now **confined to the config directory** — a bare filename or a
+  path inside `oxide/config/` is accepted; paths outside it are rejected (new
+  `ImportOutside` message added to all 8 locales).
+- Snapshot-deferred panel registration uses an **expanding backoff** (2s, 5s, 10s, 15s)
+  then registers best-effort, instead of retrying every 2s indefinitely.
+- `INSTALL.md` documents the InfoPanel import, including the best-effort dock-margin caveat.
+
+### Fixed
+- `PanelRegister` now **rejects** third-party panel names that collide with a built-in
+  panel id (they would otherwise shadow the built-in).
+- Stricter JSON type checks in the InfoPanel importer (booleans and strings are read only
+  from matching token types).
+
 ## [1.1.1] - 2026-06-08
 
 ### Changed

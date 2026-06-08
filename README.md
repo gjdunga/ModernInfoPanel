@@ -3,7 +3,7 @@
 [![Standards](https://github.com/gjdunga/ModernInfoPanel/actions/workflows/standards.yml/badge.svg)](https://github.com/gjdunga/ModernInfoPanel/actions/workflows/standards.yml)
 [![Compile](https://github.com/gjdunga/ModernInfoPanel/actions/workflows/compile.yml/badge.svg)](https://github.com/gjdunga/ModernInfoPanel/actions/workflows/compile.yml)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
-![Version](https://img.shields.io/badge/version-1.1.1-informational)
+![Version](https://img.shields.io/badge/version-1.2.0-informational)
 
 A configurable corner-HUD information panel for Rust — a modern, security- and
 performance-minded rebuild of the classic InfoPanel concept. Four corner "docks"
@@ -63,7 +63,7 @@ slash: `mipanel …`).
 | `mipanel` | `clock server [offset]` | Use server time; optional hour offset `-23..23`. Player-only. |
 | `mipanel` | `timeformat [index]` | List or pick a clock format. Player-only. |
 | `mipanel` | `reload` | **Admin/server** — reload config and redraw all panels. Works from chat, console, RCON, and the server console. |
-| `mipanel` | `import [path]` | **Admin/server** — import an existing InfoPanel config (default `oxide/config/InfoPanel.json`) into MIP, then reload. Works from chat, console, RCON, and the server console. |
+| `mipanel` | `import [file]` | **Admin/server** — import an existing InfoPanel config (a filename or path **inside the config folder**; default `oxide/config/InfoPanel.json`) into MIP, then reload. Works from chat, console, RCON, and the server console. |
 
 > The per-player subcommands (`hide`, `show`, `clock`, `timeformat`) need a player,
 > so from the server console/RCON only `reload` and `import` apply; the rest reply

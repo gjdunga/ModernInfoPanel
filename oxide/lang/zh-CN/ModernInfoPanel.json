@@ -21,6 +21,7 @@
   "ImportOk": "已导入 InfoPanel 配置 — {0}。",
   "ImportNone": "在 {0} 未找到 InfoPanel 配置。",
   "ImportFailed": "InfoPanel 导入失败：{0}。",
+  "ImportOutside": "导入路径必须位于配置目录内。",
   "PlayersLabel": "{0} / {1}",
   "DirN": "北",
   "DirNE": "东北",
