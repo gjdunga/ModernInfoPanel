@@ -35,7 +35,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Modern Info Panel", "gjdunga", "1.1.0")]
+    [Info("Modern Info Panel", "gjdunga", "1.1.1")]
     [Description("Configurable corner HUD panels: clock, announcements, balance, points, coordinates, compass, player counts and live event indicators. Oxide + Carbon compatible.")]
     public class ModernInfoPanel : RustPlugin
     {
@@ -130,7 +130,7 @@ namespace Oxide.Plugins
         private sealed class Configuration
         {
             [JsonProperty("Config version")]
-            public string Version = "1.1.0";
+            public string Version = "1.1.1";
 
             [JsonProperty("General")]
             public GeneralOptions General = new GeneralOptions();
@@ -224,10 +224,9 @@ namespace Oxide.Plugins
             // First-load migration: if this server is coming from the classic InfoPanel
             // and has no MIP config yet, fold its settings into our fresh defaults so the
             // operator keeps their docks/panels. A malformed InfoPanel file never blocks startup.
-            string summary;
-            if (TryImportInfoPanel(DefaultInfoPanelPath, _config, out summary))
-                PrintWarning($"Imported existing InfoPanel config — {summary}");
-            else
+            // A successful import logs its own console+file report (see LogImport);
+            // only announce the plain-default case here.
+            if (!TryImportInfoPanel(DefaultInfoPanelPath, _config, out _))
                 PrintWarning("Created a new default configuration file.");
 
             SaveConfig();
@@ -391,7 +390,14 @@ namespace Oxide.Plugins
 
             JObject src;
             try { src = JObject.Parse(File.ReadAllText(path)); }
-            catch (Exception ex) { summary = ex.Message; return false; }
+            catch (Exception ex)
+            {
+                // Keep the raw parser detail server-side only; the player-facing reply
+                // gets the generic ImportFailed message (the path), never file contents.
+                LogImport($"InfoPanel import from \"{path}\" failed to parse: {ex.Message}");
+                summary = path;
+                return false;
+            }
 
             int docks = 0, panels = 0;
             var skipped = new List<string>();
@@ -428,12 +434,26 @@ namespace Oxide.Plugins
             if (docks == 0 && panels == 0) return false;
 
             summary = $"{docks} dock(s), {panels} panel(s)";
+            if (skipped.Count > 0) summary += $", {skipped.Count} skipped";
+
+            // Durable record of what the import did — to the server console and a logfile
+            // (oxide/logs/ModernInfoPanel/) — including the coverage caveat so operators
+            // understand why some panels may not have come across.
+            string report = $"InfoPanel import from \"{path}\": {docks} dock(s), {panels} panel(s) mapped, {skipped.Count} skipped.";
             if (skipped.Count > 0)
-            {
-                summary += $", {skipped.Count} skipped";
-                PrintWarning($"InfoPanel import skipped {skipped.Count} unrecognised panel(s): {string.Join(", ", skipped.ToArray())}");
-            }
+                report += $"\n  Skipped (no Modern Info Panel equivalent): {string.Join(", ", skipped.ToArray())}";
+            report += "\n  Note: panels InfoPanel registers at runtime (its sub-plugins / oxide/data) are not stored in InfoPanel.json and cannot be imported; only docks and panels present in the file are migrated.";
+            LogImport(report);
+
             return true;
+        }
+
+        // Mirror an import report to the server console and a dated logfile under
+        // oxide/logs/ModernInfoPanel/ (Carbon writes to its own logs directory).
+        private void LogImport(string text)
+        {
+            Puts(text);
+            LogToFile("import", text, this);
         }
 
         private static void ImportDock(JObject src, DockConfig dock)
@@ -834,6 +854,13 @@ namespace Oxide.Plugins
                     else
                     { x0 = left; x1 = left + w; left = x1; }
 
+                    // Panels whose widths exceed the dock would otherwise overlap or
+                    // produce out-of-bounds anchors — clamp to the dock and drop any
+                    // panel with no room left.
+                    x0 = Mathf.Clamp01(x0);
+                    x1 = Mathf.Clamp01(x1);
+                    if (x1 - x0 < 0.001f) continue;
+
                     string panelName = NPanel(e.Name);
                     c.Add(new CuiPanel
                     {
@@ -899,7 +926,8 @@ namespace Oxide.Plugins
             view.Text[panel] = value;
             if (!view.Visible || !Ready(view) || !IsVisibleTo(view, panel)) return;
 
-            PanelConfig cfg = _config.Panels[panel];
+            PanelConfig cfg;
+            if (!_config.Panels.TryGetValue(panel, out cfg)) return;
             CuiHelper.DestroyUi(view.Player, NText(panel));
             var c = new CuiElementContainer();
             float tl = Mathf.Clamp(cfg.Text?.Left ?? 0f, 0f, 0.95f);
@@ -924,8 +952,8 @@ namespace Oxide.Plugins
             view.Color[panel] = color;
             if (!view.Visible || !Ready(view) || !IsVisibleTo(view, panel)) return;
 
-            PanelConfig cfg = _config.Panels[panel];
-            if (cfg.Image == null) return;
+            PanelConfig cfg;
+            if (!_config.Panels.TryGetValue(panel, out cfg) || cfg.Image == null) return;
             float iw = Mathf.Clamp(cfg.Image.Width, 0.01f, 1f);
             float ih = Mathf.Clamp(cfg.Image.Height, 0.01f, 1f);
             float y0 = (1f - ih) * 0.5f;
@@ -1051,10 +1079,11 @@ namespace Oxide.Plugins
 
         private string ClockText(PlayerView view)
         {
-            PanelConfig cfg = _config.Panels[PClock];
+            PanelConfig cfg;
+            _config.Panels.TryGetValue(PClock, out cfg);
             PlayerPrefs p = PrefsRead(view.IdString);
-            string mode = p?.ClockMode ?? cfg.Get("Mode", "game");
-            string fmt = p?.ClockFormat ?? cfg.Get("Format", "HH:mm");
+            string mode = p?.ClockMode ?? cfg?.Get("Mode", "game") ?? "game";
+            string fmt = p?.ClockFormat ?? cfg?.Get("Format", "HH:mm") ?? "HH:mm";
 
             DateTime dt;
             if (string.Equals(mode, "server", StringComparison.OrdinalIgnoreCase))
@@ -1197,8 +1226,9 @@ namespace Oxide.Plugins
             string color;
             if (_eventColor.TryGetValue(panel, out color)) return color;
             if (_customColor.TryGetValue(panel, out color)) return color;
-            PanelConfig cfg = _config.Panels[panel];
-            return SafeColor(cfg.Image?.Color, "1 1 1 1");
+            PanelConfig cfg;
+            if (_config.Panels.TryGetValue(panel, out cfg)) return SafeColor(cfg.Image?.Color, "1 1 1 1");
+            return "1 1 1 1";
         }
 
         private string ActiveColor(string ev)
