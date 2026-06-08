@@ -4,26 +4,27 @@
   "version": "1.0.0",
   "author": "Gabriel Dungan (DunganSoft Technologies)",
   "author_handle": "gjdunga",
-  "description": "Configurable on-screen information panel (clock, players online, rotating announcements) for Rust. Oxide and Carbon compatible.",
+  "description": "Configurable corner HUD panels for Rust: clock, rotating announcements, balance, points, coordinates, compass, online/sleeper counts and live event indicators (airdrop, helicopter, chinook, cargo ship, bradley, radiation). Oxide and Carbon compatible, with a reflection-free API for custom panels.",
   "license": "GPL-3.0",
   "game": "rust",
   "language": "csharp",
-  "tags": ["ui", "hud", "gui", "info", "panel", "clock", "announcements", "oxide", "carbon"],
+  "tags": ["ui", "hud", "gui", "info", "panel", "clock", "compass", "events", "announcements", "oxide", "carbon"],
   "permissions": [
     {
-      "name": "moderninfopanel.use",
-      "description": "Allows a player to see and toggle the info panel (only enforced when the panel is not shown to everyone)."
-    },
-    {
       "name": "moderninfopanel.admin",
-      "description": "Allows reloading the configuration via /infopanel reload and the console command."
+      "description": "Allows reloading the configuration via /ipanel reload and the moderninfopanel.reload console command."
     }
   ],
   "commands": [
     {
+      "command": "ipanel",
+      "arguments": "[hide|show|clock game|clock server [offset]|timeformat [index]|reload]",
+      "description": "Open the help menu and manage your panel (hide/show, clock mode/offset, time format); 'reload' is admin-only."
+    },
+    {
       "command": "infopanel",
-      "arguments": "[on|off|toggle|reload]",
-      "description": "Toggle your info panel; 'reload' (admin) reloads the config and redraws all panels."
+      "arguments": "[hide|show|clock game|clock server [offset]|timeformat [index]|reload]",
+      "description": "Alias of /ipanel."
     },
     {
       "command": "moderninfopanel.reload",

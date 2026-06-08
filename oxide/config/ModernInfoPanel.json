@@ -1,50 +1,360 @@
 {
-  "Update interval (seconds)": 1.0,
-  "Rotator interval (seconds)": 8.0,
-  "Show panel to everyone (no permission required)": true,
-  "Clock mode (realtime | gametime)": "realtime",
-  "Clock format (.NET date/time format string)": "HH:mm",
-  "Rotating announcement messages": [
-    "Welcome! Type /infopanel to toggle this panel.",
-    "Be respectful - no harassment or cheating.",
-    "Need help? Ask a moderator in chat."
-  ],
-  "Blocks": [
-    {
-      "Id": "clock",
+  "Config version": "1.0.0",
+  "General": {
+    "Coordinate format (0 = X/Z, 1 = grid, 2 = both)": 2,
+    "Compass shows text direction (false = degrees)": true,
+    "Message rotation order (normal | random)": "normal",
+    "Show panels to players by default": true
+  },
+  "Docks": {
+    "TopLeftDock": {
       "Enabled": true,
-      "Type (clock | players | rotator | text)": "clock",
-      "Anchor min (x y, 0-1)": "0.0 0.96",
-      "Anchor max (x y, 0-1)": "0.10 1.0",
-      "Background color (R G B A, 0-1)": "0.10 0.10 0.10 0.75",
-      "Text color (R G B A, 0-1)": "1 1 1 1",
-      "Font size": 14,
-      "Text alignment (TextAnchor)": "MiddleCenter",
-      "Static text (text blocks only; empty = localized welcome)": ""
+      "Horizontal edge (Left | Right)": "Left",
+      "Vertical edge (Top | Bottom)": "Top",
+      "Distance from horizontal edge (0-1)": 0.006,
+      "Distance from vertical edge (0-1)": 0.018,
+      "Width (0-1)": 0.46,
+      "Height (0-1)": 0.03,
+      "Background color (R G B A)": "0 0 0 0"
     },
-    {
-      "Id": "players",
+    "TopRightDock": {
       "Enabled": true,
-      "Type (clock | players | rotator | text)": "players",
-      "Anchor min (x y, 0-1)": "0.10 0.96",
-      "Anchor max (x y, 0-1)": "0.27 1.0",
-      "Background color (R G B A, 0-1)": "0.10 0.10 0.10 0.75",
-      "Text color (R G B A, 0-1)": "1 1 1 1",
-      "Font size": 14,
-      "Text alignment (TextAnchor)": "MiddleCenter",
-      "Static text (text blocks only; empty = localized welcome)": ""
+      "Horizontal edge (Left | Right)": "Right",
+      "Vertical edge (Top | Bottom)": "Top",
+      "Distance from horizontal edge (0-1)": 0.006,
+      "Distance from vertical edge (0-1)": 0.018,
+      "Width (0-1)": 0.3,
+      "Height (0-1)": 0.03,
+      "Background color (R G B A)": "0 0 0 0"
     },
-    {
-      "Id": "rotator",
+    "BottomLeftDock": {
       "Enabled": true,
-      "Type (clock | players | rotator | text)": "rotator",
-      "Anchor min (x y, 0-1)": "0.27 0.96",
-      "Anchor max (x y, 0-1)": "0.73 1.0",
-      "Background color (R G B A, 0-1)": "0.10 0.10 0.10 0.60",
-      "Text color (R G B A, 0-1)": "1 1 1 1",
-      "Font size": 14,
-      "Text alignment (TextAnchor)": "MiddleCenter",
-      "Static text (text blocks only; empty = localized welcome)": ""
+      "Horizontal edge (Left | Right)": "Left",
+      "Vertical edge (Top | Bottom)": "Bottom",
+      "Distance from horizontal edge (0-1)": 0.006,
+      "Distance from vertical edge (0-1)": 0.175,
+      "Width (0-1)": 0.3,
+      "Height (0-1)": 0.03,
+      "Background color (R G B A)": "0 0 0 0"
+    },
+    "BottomRightDock": {
+      "Enabled": true,
+      "Horizontal edge (Left | Right)": "Right",
+      "Vertical edge (Top | Bottom)": "Bottom",
+      "Distance from horizontal edge (0-1)": 0.006,
+      "Distance from vertical edge (0-1)": 0.175,
+      "Width (0-1)": 0.2,
+      "Height (0-1)": 0.03,
+      "Background color (R G B A)": "0 0 0 0"
     }
+  },
+  "Panels": {
+    "Clock": {
+      "Enabled": true,
+      "Dock": "BottomLeftDock",
+      "Order": 1,
+      "Width within dock (0-1)": 0.3,
+      "Align within dock (Left | Right)": "Left",
+      "Background color (R G B A)": "0 0 0 0.45",
+      "Refresh interval seconds (0 = static/event-driven)": 1,
+      "Text": {
+        "Enabled": true,
+        "Font size": 14,
+        "Color (R G B A)": "1 1 1 1",
+        "Alignment (TextAnchor)": "MiddleCenter",
+        "Static content (text/3rd-party panels)": "",
+        "Offset from left within panel (0-1)": 0.0
+      },
+      "Settings": {
+        "Mode": "game",
+        "Format": "HH:mm"
+      }
+    },
+    "Balance": {
+      "Enabled": true,
+      "Dock": "BottomLeftDock",
+      "Order": 2,
+      "Width within dock (0-1)": 0.35,
+      "Align within dock (Left | Right)": "Left",
+      "Background color (R G B A)": "0 0 0 0.45",
+      "Refresh interval seconds (0 = static/event-driven)": 5,
+      "Image": {
+        "Enabled": true,
+        "Url": "https://i.imgur.com/XgJg7ZC.png",
+        "Color (R G B A)": "1 1 1 1",
+        "Width within panel (0-1)": 0.22,
+        "Height within panel (0-1)": 0.8
+      },
+      "Text": {
+        "Enabled": true,
+        "Font size": 12,
+        "Color (R G B A)": "1 1 1 1",
+        "Alignment (TextAnchor)": "MiddleCenter",
+        "Static content (text/3rd-party panels)": "",
+        "Offset from left within panel (0-1)": 0.24
+      }
+    },
+    "Points": {
+      "Enabled": true,
+      "Dock": "BottomLeftDock",
+      "Order": 3,
+      "Width within dock (0-1)": 0.35,
+      "Align within dock (Left | Right)": "Left",
+      "Background color (R G B A)": "0 0 0 0.45",
+      "Refresh interval seconds (0 = static/event-driven)": 5,
+      "Image": {
+        "Enabled": true,
+        "Url": "https://i.imgur.com/cdOsBa8.png",
+        "Color (R G B A)": "1 1 1 1",
+        "Width within panel (0-1)": 0.22,
+        "Height within panel (0-1)": 0.8
+      },
+      "Text": {
+        "Enabled": true,
+        "Font size": 12,
+        "Color (R G B A)": "1 1 1 1",
+        "Alignment (TextAnchor)": "MiddleCenter",
+        "Static content (text/3rd-party panels)": "",
+        "Offset from left within panel (0-1)": 0.24
+      }
+    },
+    "OnlinePlayers": {
+      "Enabled": true,
+      "Dock": "TopLeftDock",
+      "Order": 1,
+      "Width within dock (0-1)": 0.16,
+      "Align within dock (Left | Right)": "Left",
+      "Background color (R G B A)": "0 0 0 0.45",
+      "Refresh interval seconds (0 = static/event-driven)": 5,
+      "Image": {
+        "Enabled": true,
+        "Url": "https://i.imgur.com/ogL8T6p.png",
+        "Color (R G B A)": "1 1 1 1",
+        "Width within panel (0-1)": 0.34,
+        "Height within panel (0-1)": 0.8
+      },
+      "Text": {
+        "Enabled": true,
+        "Font size": 13,
+        "Color (R G B A)": "1 1 1 1",
+        "Alignment (TextAnchor)": "MiddleCenter",
+        "Static content (text/3rd-party panels)": "",
+        "Offset from left within panel (0-1)": 0.36
+      }
+    },
+    "Sleepers": {
+      "Enabled": true,
+      "Dock": "TopLeftDock",
+      "Order": 2,
+      "Width within dock (0-1)": 0.12,
+      "Align within dock (Left | Right)": "Left",
+      "Background color (R G B A)": "0 0 0 0.45",
+      "Refresh interval seconds (0 = static/event-driven)": 5,
+      "Image": {
+        "Enabled": true,
+        "Url": "https://i.imgur.com/HZobcwc.png",
+        "Color (R G B A)": "1 1 1 1",
+        "Width within panel (0-1)": 0.4,
+        "Height within panel (0-1)": 0.8
+      },
+      "Text": {
+        "Enabled": true,
+        "Font size": 13,
+        "Color (R G B A)": "1 1 1 1",
+        "Alignment (TextAnchor)": "MiddleCenter",
+        "Static content (text/3rd-party panels)": "",
+        "Offset from left within panel (0-1)": 0.42
+      }
+    },
+    "Coordinates": {
+      "Enabled": true,
+      "Dock": "TopLeftDock",
+      "Order": 3,
+      "Width within dock (0-1)": 0.3,
+      "Align within dock (Left | Right)": "Left",
+      "Background color (R G B A)": "0 0 0 0.45",
+      "Refresh interval seconds (0 = static/event-driven)": 1,
+      "Image": {
+        "Enabled": true,
+        "Url": "https://i.imgur.com/nUlXLbO.png",
+        "Color (R G B A)": "1 1 1 1",
+        "Width within panel (0-1)": 0.14,
+        "Height within panel (0-1)": 0.8
+      },
+      "Text": {
+        "Enabled": true,
+        "Font size": 12,
+        "Color (R G B A)": "1 1 1 1",
+        "Alignment (TextAnchor)": "MiddleCenter",
+        "Static content (text/3rd-party panels)": "",
+        "Offset from left within panel (0-1)": 0.16
+      }
+    },
+    "AirdropEvent": {
+      "Enabled": true,
+      "Dock": "TopLeftDock",
+      "Order": 4,
+      "Width within dock (0-1)": 0.07,
+      "Align within dock (Left | Right)": "Left",
+      "Background color (R G B A)": "0 0 0 0.45",
+      "Refresh interval seconds (0 = static/event-driven)": 0,
+      "Image": {
+        "Enabled": true,
+        "Url": "https://i.imgur.com/WUQNWgj.png",
+        "Color (R G B A)": "1 1 1 0.15",
+        "Width within panel (0-1)": 0.85,
+        "Height within panel (0-1)": 0.85
+      },
+      "Settings": {
+        "ActiveColor": "0 1 0 1",
+        "InactiveColor": "1 1 1 0.15"
+      }
+    },
+    "HelicopterEvent": {
+      "Enabled": true,
+      "Dock": "TopLeftDock",
+      "Order": 5,
+      "Width within dock (0-1)": 0.07,
+      "Align within dock (Left | Right)": "Left",
+      "Background color (R G B A)": "0 0 0 0.45",
+      "Refresh interval seconds (0 = static/event-driven)": 0,
+      "Image": {
+        "Enabled": true,
+        "Url": "https://i.imgur.com/PJBCJAv.png",
+        "Color (R G B A)": "1 1 1 0.15",
+        "Width within panel (0-1)": 0.85,
+        "Height within panel (0-1)": 0.85
+      },
+      "Settings": {
+        "ActiveColor": "0.7 0.2 0.2 1",
+        "InactiveColor": "1 1 1 0.15"
+      }
+    },
+    "ChinookEvent": {
+      "Enabled": true,
+      "Dock": "TopLeftDock",
+      "Order": 6,
+      "Width within dock (0-1)": 0.07,
+      "Align within dock (Left | Right)": "Left",
+      "Background color (R G B A)": "0 0 0 0.45",
+      "Refresh interval seconds (0 = static/event-driven)": 0,
+      "Image": {
+        "Enabled": true,
+        "Url": "https://i.imgur.com/6ES0vIG.png",
+        "Color (R G B A)": "1 1 1 0.15",
+        "Width within panel (0-1)": 0.85,
+        "Height within panel (0-1)": 0.85
+      },
+      "Settings": {
+        "ActiveColor": "0.7 0.2 0.2 1",
+        "InactiveColor": "1 1 1 0.15"
+      }
+    },
+    "CargoShipEvent": {
+      "Enabled": true,
+      "Dock": "TopLeftDock",
+      "Order": 7,
+      "Width within dock (0-1)": 0.07,
+      "Align within dock (Left | Right)": "Left",
+      "Background color (R G B A)": "0 0 0 0.45",
+      "Refresh interval seconds (0 = static/event-driven)": 0,
+      "Image": {
+        "Enabled": true,
+        "Url": "https://i.imgur.com/twAPVF8.png",
+        "Color (R G B A)": "1 1 1 0.15",
+        "Width within panel (0-1)": 0.85,
+        "Height within panel (0-1)": 0.85
+      },
+      "Settings": {
+        "ActiveColor": "0 1 0 1",
+        "InactiveColor": "1 1 1 0.15"
+      }
+    },
+    "BradleyEvent": {
+      "Enabled": false,
+      "Dock": "TopLeftDock",
+      "Order": 8,
+      "Width within dock (0-1)": 0.07,
+      "Align within dock (Left | Right)": "Left",
+      "Background color (R G B A)": "0 0 0 0.45",
+      "Refresh interval seconds (0 = static/event-driven)": 0,
+      "Image": {
+        "Enabled": true,
+        "Url": "https://i.imgur.com/61Gdczt.png",
+        "Color (R G B A)": "1 1 1 0.15",
+        "Width within panel (0-1)": 0.85,
+        "Height within panel (0-1)": 0.85
+      },
+      "Settings": {
+        "ActiveColor": "0.7 0.2 0.2 1",
+        "InactiveColor": "1 1 1 0.15"
+      }
+    },
+    "RadiationEvent": {
+      "Enabled": false,
+      "Dock": "TopLeftDock",
+      "Order": 9,
+      "Width within dock (0-1)": 0.07,
+      "Align within dock (Left | Right)": "Left",
+      "Background color (R G B A)": "0 0 0 0.45",
+      "Refresh interval seconds (0 = static/event-driven)": 0,
+      "Image": {
+        "Enabled": true,
+        "Url": "https://i.imgur.com/Z0ar6gu.png",
+        "Color (R G B A)": "1 1 1 0.15",
+        "Width within panel (0-1)": 0.85,
+        "Height within panel (0-1)": 0.85
+      },
+      "Settings": {
+        "ActiveColor": "1 1 0 1",
+        "InactiveColor": "1 1 1 0.15"
+      }
+    },
+    "Messages": {
+      "Enabled": true,
+      "Dock": "TopRightDock",
+      "Order": 1,
+      "Width within dock (0-1)": 1.0,
+      "Align within dock (Left | Right)": "Left",
+      "Background color (R G B A)": "0 0 0 0.45",
+      "Refresh interval seconds (0 = static/event-driven)": 8,
+      "Text": {
+        "Enabled": true,
+        "Font size": 13,
+        "Color (R G B A)": "1 1 1 1",
+        "Alignment (TextAnchor)": "MiddleCenter",
+        "Static content (text/3rd-party panels)": "",
+        "Offset from left within panel (0-1)": 0.0
+      }
+    },
+    "Compass": {
+      "Enabled": false,
+      "Dock": "BottomRightDock",
+      "Order": 1,
+      "Width within dock (0-1)": 0.5,
+      "Align within dock (Left | Right)": "Left",
+      "Background color (R G B A)": "0 0 0 0.45",
+      "Refresh interval seconds (0 = static/event-driven)": 1,
+      "Image": {
+        "Enabled": true,
+        "Url": "https://i.imgur.com/7brpZTi.png",
+        "Color (R G B A)": "1 1 1 1",
+        "Width within panel (0-1)": 0.2,
+        "Height within panel (0-1)": 0.8
+      },
+      "Text": {
+        "Enabled": true,
+        "Font size": 12,
+        "Color (R G B A)": "1 1 1 1",
+        "Alignment (TextAnchor)": "MiddleCenter",
+        "Static content (text/3rd-party panels)": "",
+        "Offset from left within panel (0-1)": 0.22
+      }
+    }
+  },
+  "Rotating announcement messages": [
+    "Welcome! Type /ipanel for options.",
+    "Be respectful — no harassment or cheating.",
+    "Need help? Ask a moderator in chat."
   ]
 }

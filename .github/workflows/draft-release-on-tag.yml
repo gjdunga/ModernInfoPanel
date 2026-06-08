@@ -1,0 +1,35 @@
+name: Draft release on version tag
+
+on:
+  push:
+    tags: [ 'v*.*.*', 'V*.*.*' ]
+
+permissions:
+  contents: write
+
+jobs:
+  draft-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Stage release assets (lang files get unique, locale-suffixed names)
+        run: |
+          mkdir -p release-assets
+          cp "oxide/plugins/ModernInfoPanel.cs" release-assets/
+          for dir in oxide/lang/*/; do
+            loc="$(basename "$dir")"
+            src="${dir}ModernInfoPanel.json"
+            [ -f "$src" ] && cp "$src" "release-assets/ModernInfoPanel-${loc}.json"
+          done
+          [ -f "oxide/config/ModernInfoPanel.json" ] && cp "oxide/config/ModernInfoPanel.json" "release-assets/ModernInfoPanel-config.json" || true
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Modern Info Panel ${{ github.ref_name }}
+          draft: true
+          generate_release_notes: true
+          files: |
+            release-assets/ModernInfoPanel.cs
+            release-assets/ModernInfoPanel-*.json
