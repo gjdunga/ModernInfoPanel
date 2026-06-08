@@ -5,7 +5,7 @@
 > the screenshots and confirm the price before publishing. Regenerate on each release.
 
 - **Title:** Modern Info Panel
-- **Version:** 1.0.0
+- **Version:** 1.4.0
 - **Price:** Free
 - **Tags:** ui, hud, gui, info, panel, clock, compass, events, announcements, oxide, carbon
 - **Compatibility:** Oxide **2.0.7022+** (verified 2.0.7423) · also supports **Carbon**
@@ -32,13 +32,13 @@ Configurable corner HUD panels for Rust: clock, rotating announcements, balance,
 
 | Permission | Description |
 | --- | --- |
-| moderninfopanel.admin | Allows reloading the configuration via 'mipanel reload' from chat, console, or RCON (the server console and RCON are always authorized). |
+| moderninfopanel.admin | Allows 'mipanel reload' and 'mipanel import' (import an existing InfoPanel config) from chat, console, or RCON (the server console and RCON are always authorized). |
 
 ## Commands
 
 | Command | Arguments | Description |
 | --- | --- | --- |
-| `mipanel` | `[hide|show|clock game|clock server [offset]|timeformat [index]|reload]` | Universal command (chat /mipanel, in-game F1 console, server console, and RCON as 'mipanel ...'). Manage your panel (hide/show, clock mode/offset, time format); 'reload' is admin/server-only and works from any context. |
+| `mipanel` | `[hide|show|clock game|clock server [offset]|timeformat [index]|reload|import [path]]` | Universal command (chat /mipanel, in-game F1 console, server console, and RCON as 'mipanel ...'). Manage your panel (hide/show, clock mode/offset, time format); 'reload' and 'import' are admin/server-only and work from any context. |
 
 ## Installation
 
@@ -46,42 +46,23 @@ Configurable corner HUD panels for Rust: clock, rotating announcements, balance,
 2. Upload it to `oxide/plugins/ModernInfoPanel.cs` on your server.
 3. The plugin compiles and loads automatically; a default config is written to `oxide/config/ModernInfoPanel.json` on first load.
 
-## What's new in 1.0.0
+## What's new in 1.4.0
 
 ### Added
-- Initial release of **Modern Info Panel** — a security- and performance-minded
-  rebuild of the classic InfoPanel concept (originally by Gonzi), conformant with
-  the DunganSoft Plugin Standard.
-- Four configurable corner **docks** (top-left, top-right, bottom-left,
-  bottom-right); panels tile within a dock by order, with per-panel width,
-  alignment, background color, refresh interval, and optional permission.
-- Built-in panels: `Clock`, `Messages` (rotating announcements), `Balance`
-  (Economics), `Points` (ServerRewards), `Coordinates` (X/Z, grid, or both),
-  `Compass` (text or degrees), `OnlinePlayers`, `Sleepers`, and live event
-  indicators `AirdropEvent`, `HelicopterEvent`, `ChinookEvent`, `CargoShipEvent`,
-  `BradleyEvent`, and `RadiationEvent`.
-- A single universal `mipanel` command, registered via covalence so it runs from
-  chat (`/mipanel …`), the in-game F1 console, the **server console**, and **RCON**
-  (consoles use `mipanel …`): `hide`/`show`, `clock game`, `clock server [offset]`,
-  `timeformat [index]`, and admin/server `reload`. Per-player choices persist across
-  reconnects; `reload` works from any context.
-- Permission `moderninfopanel.admin` (server console/RCON are always authorized);
-  dynamic per-panel permissions (`moderninfopanel.<suffix>`).
-- Reflection-free developer API: `PanelRegister`, `PanelUnregister`,
-  `SetPanelText`, `SetPanelImage`, `ShowPanel`, `HidePanel`, `RefreshPanel`,
-  `IsPlayerGUILoaded`. Panels registered by a plugin are removed when it unloads.
-- Localization in 8 locales: `en, es, ru, la, zh-CN, de, fr, pt`.
-
-### Performance & security
-- Single 1-second master tick with per-panel cadence; only changed labels/icons
-  are pushed (values cached per player), so backgrounds never flicker and idle
-  ticks send nothing.
-- Event indicators are driven by `OnEntitySpawned`/`OnEntityKill` with a periodic
-  validity prune instead of constant polling.
-- All numeric UI values are formatted with `InvariantCulture`; config colors,
-  anchors, font sizes, and offsets are validated and clamped on use.
-- No `System.Reflection`; uses only the shared Rust/CUI APIs (Oxide + Carbon),
-  and guards all optional plugin calls (Economics/ServerRewards).
+- **Dynamic placeholders** in panel `Static content` and rotating announcements — `{name}`,
+  `{online}`, `{max}`, `{sleepers}`, `{grid}`, `{coords}`, `{x}`, `{z}`, `{time}`, `{balance}`,
+  `{points}`, `{server}`, `{wipe}`, `{lastwipe}` — resolved per-viewer. Optional pass-through to
+  the **PlaceholderAPI** plugin if it's installed (`General → Resolve {tokens} via PlaceholderAPI`).
+- **Clickable panels** — set a panel's `Run command on click` to a console command (run as the
+  clicking player; placeholders resolved) to turn it into a launcher.
+- **Three new built-in panels** (all disabled by default): `ServerFPS`, `Ping`, and
+  `WipeCountdown`.
+- **Wipe countdown** — shows `Wipe in Xd Yh`. The cadence is auto-detected from the server's
+  browser tags (`weekly`/`biweekly`/`monthly`; override or `custom` in `Wipe schedule`), and the
+  anchor is the **actual last map wipe** — detected via the `OnNewSave` hook (map wipe, *not* a
+  blueprint wipe) and the save-file timestamp on first run. Warns once if the cadence is unset.
+- **Panel fade-in** — `General → Panel fade-in seconds` (0 = off); fades panels in on draw without
+  re-fading on value updates.
 
 ## Links
 

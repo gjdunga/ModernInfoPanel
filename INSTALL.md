@@ -48,6 +48,26 @@ Edit `ModernInfoPanel.json`, then apply with either:
 
 See the [README](README.md#configuration) for the full schema.
 
+## Enabling the extra panels & the wipe countdown
+
+Several panels ship **disabled** so an update never changes an existing layout. To turn one
+on, set its `"Enabled": true` in `ModernInfoPanel.json` and run `mipanel reload`: `Compass`,
+`ServerFPS`, `Ping`, `WipeCountdown` (and the `BradleyEvent` / `RadiationEvent` icons).
+
+- **ServerFPS / Ping** — no setup; they read the server FPS and each player's ping.
+- **WipeCountdown** — shows `Wipe in Xd Yh`. The cadence is auto-detected from your server
+  browser tags (`server.tags` containing `weekly`, `biweekly`, or `monthly`). If your tags
+  don't include one, set `Wipe schedule → Interval` to `weekly|biweekly|monthly|custom`
+  (`custom` uses `Custom interval days`) — otherwise the panel stays blank and the console
+  prints a one-time reminder. The countdown anchors on the **actual last map wipe**, detected
+  automatically (the `OnNewSave` hook; the save-file date on first install), so it stays
+  accurate without per-wipe edits — and never counts a blueprint wipe.
+
+**Dynamic text:** any panel's `Static content` and the rotating announcements accept `{tokens}`
+like `{name}`, `{online}`, `{grid}`, `{time}`, `{balance}`, `{wipe}`; and a panel's
+`Run command on click` turns it into a button (a console command run as the player, e.g.
+`chat.say "/shop"`). See the README's *Dynamic content* section.
+
 ## Migrating from InfoPanel
 
 If you ran the classic **InfoPanel**, Modern Info Panel can adopt its settings:
