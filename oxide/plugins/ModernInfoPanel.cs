@@ -35,7 +35,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Modern Info Panel", "gjdunga", "1.1.1")]
+    [Info("Modern Info Panel", "gjdunga", "1.2.0")]
     [Description("Configurable corner HUD panels: clock, announcements, balance, points, coordinates, compass, player counts and live event indicators. Oxide + Carbon compatible.")]
     public class ModernInfoPanel : RustPlugin
     {
@@ -72,6 +72,10 @@ namespace Oxide.Plugins
 
         private static readonly string[] TimeFormats = { "H:mm", "HH:mm", "h:mm", "h:mm tt" };
         private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
+
+        // Expanding backoff (seconds) for deferring panel registration while a freshly
+        // connected client is still receiving its world snapshot.
+        private static readonly float[] SnapshotRetryDelays = { 2f, 5f, 10f, 15f };
 
         private Configuration _config;
         private StoredData _data;
@@ -130,7 +134,7 @@ namespace Oxide.Plugins
         private sealed class Configuration
         {
             [JsonProperty("Config version")]
-            public string Version = "1.1.1";
+            public string Version = "1.2.0";
 
             [JsonProperty("General")]
             public GeneralOptions General = new GeneralOptions();
@@ -359,6 +363,20 @@ namespace Oxide.Plugins
         // layer too. Used by the first-load auto-import and the `mipanel import` command.
         private string DefaultInfoPanelPath => Path.Combine(Interface.Oxide.ConfigDirectory, "InfoPanel.json");
 
+        // True when `path` resolves to a file inside `configDir` (after canonicalising any
+        // ".." segments) — used to confine `mipanel import` to the server's config folder.
+        private static bool IsUnderConfigDir(string path, string configDir)
+        {
+            try
+            {
+                string root = Path.GetFullPath(configDir);
+                if (root.Length == 0) return false;
+                if (root[root.Length - 1] != Path.DirectorySeparatorChar) root += Path.DirectorySeparatorChar;
+                return Path.GetFullPath(path).StartsWith(root, StringComparison.OrdinalIgnoreCase);
+            }
+            catch { return false; }
+        }
+
         // InfoPanel panel names (and common community variants) mapped onto MIP's built-in
         // panel ids. Case-insensitive; names not listed are tried as-is, then skipped.
         private static readonly Dictionary<string, string> InfoPanelAliases =
@@ -379,6 +397,14 @@ namespace Oxide.Plugins
                 ["Compass"] = PCompass,
                 ["Messages"] = PMessages, ["ServerInfo"] = PMessages, ["Welcome"] = PMessages, ["Announcement"] = PMessages, ["News"] = PMessages
             };
+
+        // Built-in panel ids — third-party registrations may not reuse these (they would
+        // shadow a built-in whose content the plugin still renders), so PanelRegister rejects them.
+        private static readonly HashSet<string> BuiltInPanels = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            PClock, PMessages, PBalance, PPoints, PCoordinates, PCompass, POnline, PSleepers,
+            PAirdrop, PHeli, PChinook, PCargo, PBradley, PRadiation
+        };
 
         // Read an InfoPanel config from `path` and overlay everything we recognise onto `cfg`
         // (a merge — MIP defaults survive for anything absent). Unknown panels are logged and
@@ -509,15 +535,15 @@ namespace Oxide.Plugins
         private static string Str(JObject o, string key, string fallback)
         {
             JToken t;
-            return o != null && o.TryGetValue(key, out t) && t.Type != JTokenType.Null ? t.ToString() : fallback;
+            return o != null && o.TryGetValue(key, out t) && t != null && t.Type == JTokenType.String
+                ? t.Value<string>() : fallback;
         }
 
         private static bool Bool(JObject o, string key, bool fallback)
         {
             JToken t;
-            if (o == null || !o.TryGetValue(key, out t)) return fallback;
-            bool b;
-            return bool.TryParse(t.ToString(), out b) ? b : fallback;
+            return o != null && o.TryGetValue(key, out t) && t != null && t.Type == JTokenType.Boolean
+                ? t.Value<bool>() : fallback;
         }
 
         private static float Float(JObject o, string key, float fallback)
@@ -569,6 +595,7 @@ namespace Oxide.Plugins
                 ["ImportOk"] = "Imported InfoPanel config — {0}.",
                 ["ImportNone"] = "No InfoPanel config found at {0}.",
                 ["ImportFailed"] = "InfoPanel import failed: {0}.",
+                ["ImportOutside"] = "Import path must be inside the config directory.",
                 ["PlayersLabel"] = "{0} / {1}",
                 ["DirN"] = "North", ["DirNE"] = "Northeast", ["DirE"] = "East", ["DirSE"] = "Southeast",
                 ["DirS"] = "South", ["DirSW"] = "Southwest", ["DirW"] = "West", ["DirNW"] = "Northwest"
@@ -633,13 +660,17 @@ namespace Oxide.Plugins
 
         private void OnServerSave() => SaveStoredData();
 
-        private void OnPlayerConnected(BasePlayer player)
+        private void OnPlayerConnected(BasePlayer player) => TryRegisterWhenReady(player, 0);
+
+        // Defer registration until the client has finished receiving its snapshot, retrying
+        // on an expanding backoff (2s, 5s, 10s, 15s). After the last attempt, register anyway
+        // as a best-effort so a slow client still gets a panel rather than retrying forever.
+        private void TryRegisterWhenReady(BasePlayer player, int attempt)
         {
-            if (player == null) return;
-            // Defer until the client has finished receiving its snapshot.
-            if (player.HasPlayerFlag(BasePlayer.PlayerFlags.ReceivingSnapshot))
+            if (player == null || !player.IsConnected) return;
+            if (player.HasPlayerFlag(BasePlayer.PlayerFlags.ReceivingSnapshot) && attempt < SnapshotRetryDelays.Length)
             {
-                timer.Once(2f, () => OnPlayerConnected(player));
+                timer.Once(SnapshotRetryDelays[attempt], () => TryRegisterWhenReady(player, attempt + 1));
                 return;
             }
             Register(player);
@@ -654,9 +685,8 @@ namespace Oxide.Plugins
         private void OnEntitySpawned(BaseNetworkable entity)
         {
             if (!_ready || entity == null) return;
-            string ev;
-            if (!EventTypes.TryGetValue(entity.GetType(), out ev)) return;
-            if (!PanelEnabled(ev)) return;
+            string ev = ResolveEventType(entity);
+            if (ev == null || !PanelEnabled(ev)) return;
             var ent = entity as BaseEntity;
             if (ent != null) _eventEntities[ev].Add(ent);
         }
@@ -665,9 +695,8 @@ namespace Oxide.Plugins
         {
             var ent = entity as BaseEntity;
             if (ent == null) return;
-            string ev;
-            if (EventTypes.TryGetValue(entity.GetType(), out ev) && _eventEntities.ContainsKey(ev))
-                _eventEntities[ev].Remove(ent);
+            string ev = ResolveEventType(entity);
+            if (ev != null && _eventEntities.ContainsKey(ev)) _eventEntities[ev].Remove(ent);
         }
 
         private void OnPluginUnloaded(Plugin plugin)
@@ -1186,6 +1215,21 @@ namespace Oxide.Plugins
                 if (e != null && !e.IsDestroyed) _eventEntities[ev].Add(e);
         }
 
+        // Map a spawned/killed entity to its event panel. Exact type is the vanilla fast
+        // path; the `is` checks are a second layer so modded subclasses of the vanilla
+        // event entities still drive their indicator without affecting vanilla behaviour.
+        private static string ResolveEventType(BaseNetworkable entity)
+        {
+            string ev;
+            if (EventTypes.TryGetValue(entity.GetType(), out ev)) return ev;
+            if (entity is CargoPlane) return PAirdrop;
+            if (entity is PatrolHelicopter) return PHeli;
+            if (entity is CH47Helicopter) return PChinook;
+            if (entity is CargoShip) return PCargo;
+            if (entity is BradleyAPC) return PBradley;
+            return null;
+        }
+
         private void UpdateEvents()
         {
             foreach (var pair in _eventEntities)
@@ -1292,7 +1336,13 @@ namespace Oxide.Plugins
                 bool ok = authorizedConsole || (player != null && permission.UserHasPermission(id, PermAdmin));
                 if (!ok) { reply(L("NoPermission", id)); return; }
 
-                string path = args.Length >= 2 ? args[1] : DefaultInfoPanelPath;
+                // Confine imports to the config directory: a relative arg resolves under it,
+                // an absolute arg must live inside it, and traversal (..) is canonicalised away.
+                string configDir = Interface.Oxide.ConfigDirectory;
+                string path = args.Length >= 2
+                    ? (Path.IsPathRooted(args[1]) ? args[1] : Path.Combine(configDir, args[1]))
+                    : DefaultInfoPanelPath;
+                if (!IsUnderConfigDir(path, configDir)) { reply(L("ImportOutside", id)); return; }
                 if (!File.Exists(path)) { reply(L("ImportNone", id, path)); return; }
 
                 string summary;
@@ -1462,6 +1512,12 @@ namespace Oxide.Plugins
             try { cfg = JsonConvert.DeserializeObject<PanelConfig>(json); }
             catch (Exception ex) { PrintWarning($"PanelRegister: bad JSON from {pluginName} for {panelName}: {ex.Message}"); return false; }
             if (cfg == null) return false;
+
+            if (BuiltInPanels.Contains(panelName))
+            {
+                PrintWarning($"PanelRegister: '{panelName}' from {pluginName} collides with a built-in panel id; rejected.");
+                return false;
+            }
 
             cfg.ThirdParty = true;
             if (string.IsNullOrEmpty(cfg.Dock) || !_config.Docks.ContainsKey(cfg.Dock)) cfg.Dock = "BottomLeftDock";

@@ -48,6 +48,32 @@ Edit `ModernInfoPanel.json`, then apply with either:
 
 See the [README](README.md#configuration) for the full schema.
 
+## Migrating from InfoPanel
+
+If you ran the classic **InfoPanel**, Modern Info Panel can adopt its settings:
+
+- **Automatic** — on first load (when no `ModernInfoPanel.json` exists yet) an existing
+  `oxide/config/InfoPanel.json` is detected and its docks/panels are folded into the
+  config that gets generated.
+- **Manual** — an admin or the server console/RCON can run `mipanel import [file]` at any
+  time. The path is **confined to the config directory**: pass a bare filename
+  (e.g. `mipanel import InfoPanel.backup.json`) or a path inside `oxide/config/`; paths
+  outside it are rejected. With no argument it imports `oxide/config/InfoPanel.json`.
+
+Every import writes a report to the **server console** and to a logfile under
+`oxide/logs/ModernInfoPanel/` (docks/panels mapped, panels skipped, and a coverage note).
+
+**Caveats — the import is best-effort:**
+
+- **Dock placement is approximate.** InfoPanel positions docks with a four-value CUI
+  `Margin` (`left top right bottom`); Modern Info Panel uses a single distance from each
+  anchored edge, so imported dock offsets are derived from the matching margin sides and
+  may need a small tweak. Review the result and run `mipanel reload` to apply edits.
+- **Only what's in `InfoPanel.json` is imported.** Panels that InfoPanel registers at
+  runtime via its sub-plugins (or stores under `oxide/data`) are not in the config file
+  and cannot be migrated; the import log lists what was skipped.
+- Your `InfoPanel.json` is read-only and never modified.
+
 ## Uninstall
 
 1. Remove the `.cs` file from the plugins folder.
