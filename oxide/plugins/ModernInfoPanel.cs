@@ -35,7 +35,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Modern Info Panel", "gjdunga", "1.2.0")]
+    [Info("Modern Info Panel", "gjdunga", "1.2.1")]
     [Description("Configurable corner HUD panels: clock, announcements, balance, points, coordinates, compass, player counts and live event indicators. Oxide + Carbon compatible.")]
     public class ModernInfoPanel : RustPlugin
     {
@@ -83,6 +83,11 @@ namespace Oxide.Plugins
         private bool _ready;
         private long _tick;
         private int _messageIndex;
+        private bool _dataDirty;
+
+        // Light per-player command cooldown (Time.realtimeSinceStartup) to blunt console-macro spam.
+        private readonly Dictionary<string, float> _lastCmd = new Dictionary<string, float>();
+        private const float CommandCooldown = 1f;
 
         // Per-connected-player render state.
         private readonly Dictionary<string, PlayerView> _views = new Dictionary<string, PlayerView>();
@@ -134,7 +139,7 @@ namespace Oxide.Plugins
         private sealed class Configuration
         {
             [JsonProperty("Config version")]
-            public string Version = "1.2.0";
+            public string Version = "1.2.1";
 
             [JsonProperty("General")]
             public GeneralOptions General = new GeneralOptions();
@@ -654,11 +659,11 @@ namespace Oxide.Plugins
             _tickTimer = null;
             foreach (BasePlayer player in BasePlayer.activePlayerList)
                 CuiHelper.DestroyUi(player, Root);
-            SaveStoredData();
+            FlushData();
             _views.Clear();
         }
 
-        private void OnServerSave() => SaveStoredData();
+        private void OnServerSave() => FlushData();
 
         private void OnPlayerConnected(BasePlayer player) => TryRegisterWhenReady(player, 0);
 
@@ -680,6 +685,7 @@ namespace Oxide.Plugins
         {
             if (player == null) return;
             _views.Remove(player.UserIDString);
+            _lastCmd.Remove(player.UserIDString);
         }
 
         private void OnEntitySpawned(BaseNetworkable entity)
@@ -752,6 +758,34 @@ namespace Oxide.Plugins
         private void SaveStoredData()
         {
             if (_data != null) Interface.Oxide.DataFileSystem.WriteObject(DataFile, _data);
+        }
+
+        // Persistence is debounced: state-changing commands mark the data dirty and a
+        // periodic flush (plus OnServerSave / Unload) writes it at most once per minute,
+        // so command spam can't drive a full-file disk write per keystroke.
+        private void MarkDataDirty() => _dataDirty = true;
+
+        private void FlushData()
+        {
+            if (!_dataDirty || _data == null) return;
+            PrunePrefs();
+            SaveStoredData();
+            _dataDirty = false;
+        }
+
+        // Drop player entries that match the default behaviour, so the file can't grow
+        // without bound from players who only ever toggled back to defaults.
+        private void PrunePrefs()
+        {
+            bool defaultHidden = !_config.General.ShownByDefault;
+            List<string> drop = null;
+            foreach (var kv in _data.Players)
+            {
+                PlayerPrefs p = kv.Value;
+                if (p != null && p.ClockMode == null && p.ClockFormat == null && p.ClockOffset == 0 && p.Hidden == defaultHidden)
+                    (drop ?? (drop = new List<string>())).Add(kv.Key);
+            }
+            if (drop != null) foreach (string k in drop) _data.Players.Remove(k);
         }
 
         private PlayerPrefs Prefs(string id)
@@ -1075,6 +1109,9 @@ namespace Oxide.Plugins
                 if (dueBalance) PushText(view, PBalance, BalanceText(view));
                 if (duePoints) PushText(view, PPoints, PointsText(view));
             }
+
+            // Debounced persistence: flush at most ~once a minute when dirty.
+            if (_dataDirty && _tick % 60 == 0) FlushData();
         }
 
         private bool Due(string panel)
@@ -1365,20 +1402,28 @@ namespace Oxide.Plugins
 
             if (sub == null) { reply(HelpText(id)); return; }
 
+            // Light per-player cooldown on the state-changing subcommands so a console macro
+            // can't drive repeated saves/redraws. Silently drop while on cooldown.
+            float now = UnityEngine.Time.realtimeSinceStartup;
+            float last;
+            if (_lastCmd.TryGetValue(id, out last) && now - last < CommandCooldown) return;
+            _lastCmd[id] = now;
+
             switch (sub)
             {
                 case "hide":
-                    Prefs(id).Hidden = true;
-                    SaveStoredData();
-                    HideFor(id);
+                    if (!IsHidden(id)) { Prefs(id).Hidden = true; MarkDataDirty(); HideFor(id); }
                     reply(L("PanelHidden", id));
                     break;
 
                 case "show":
-                    Prefs(id).Hidden = false;
-                    SaveStoredData();
-                    PlayerView view;
-                    if (_views.TryGetValue(id, out view)) Draw(view);
+                    if (IsHidden(id))
+                    {
+                        Prefs(id).Hidden = false;
+                        MarkDataDirty();
+                        PlayerView view;
+                        if (_views.TryGetValue(id, out view)) Draw(view);
+                    }
                     reply(L("PanelShown", id));
                     break;
 
@@ -1414,29 +1459,32 @@ namespace Oxide.Plugins
 
             if (string.Equals(args[1], "game", StringComparison.OrdinalIgnoreCase))
             {
-                Prefs(id).ClockMode = "game";
-                SaveStoredData();
-                RefreshPlayer(id);
+                PlayerPrefs p = PrefsRead(id);
+                if (p == null || !string.Equals(p.ClockMode, "game", StringComparison.OrdinalIgnoreCase))
+                {
+                    Prefs(id).ClockMode = "game";
+                    MarkDataDirty();
+                    RefreshPlayer(id);
+                }
                 reply(L("ClockGameSet", id));
             }
             else if (string.Equals(args[1], "server", StringComparison.OrdinalIgnoreCase))
             {
                 PlayerPrefs p = Prefs(id);
+                bool changed = !string.Equals(p.ClockMode, "server", StringComparison.OrdinalIgnoreCase);
                 p.ClockMode = "server";
                 if (args.Length >= 3)
                 {
                     int offset;
                     if (int.TryParse(args[2], out offset) && offset > -24 && offset < 24)
                     {
-                        p.ClockOffset = offset;
-                        SaveStoredData();
-                        RefreshPlayer(id);
+                        if (p.ClockOffset != offset) { p.ClockOffset = offset; changed = true; }
+                        if (changed) { MarkDataDirty(); RefreshPlayer(id); }
                         reply(L("ClockOffsetSet", id, offset));
                         return;
                     }
                 }
-                SaveStoredData();
-                RefreshPlayer(id);
+                if (changed) { MarkDataDirty(); RefreshPlayer(id); }
                 reply(L("ClockServerSet", id));
             }
             else reply(L("InvalidArgs", id));
@@ -1457,9 +1505,14 @@ namespace Oxide.Plugins
             int index;
             if (int.TryParse(args[1], out index) && index >= 0 && index < TimeFormats.Length)
             {
-                Prefs(id).ClockFormat = TimeFormats[index];
-                SaveStoredData();
-                RefreshPlayer(id);
+                string fmt = TimeFormats[index];
+                PlayerPrefs p = PrefsRead(id);
+                if (p == null || p.ClockFormat != fmt)
+                {
+                    Prefs(id).ClockFormat = fmt;
+                    MarkDataDirty();
+                    RefreshPlayer(id);
+                }
                 reply(L("TimeFormatSet", id));
             }
             else reply(L("TimeFormatUsage", id));
