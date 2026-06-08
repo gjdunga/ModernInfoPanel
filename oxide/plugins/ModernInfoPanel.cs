@@ -25,7 +25,9 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Oxide.Core;
 using Oxide.Core.Plugins;
 using Oxide.Game.Rust.Cui;
@@ -33,7 +35,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Modern Info Panel", "gjdunga", "1.0.0")]
+    [Info("Modern Info Panel", "gjdunga", "1.1.0")]
     [Description("Configurable corner HUD panels: clock, announcements, balance, points, coordinates, compass, player counts and live event indicators. Oxide + Carbon compatible.")]
     public class ModernInfoPanel : RustPlugin
     {
@@ -128,7 +130,7 @@ namespace Oxide.Plugins
         private sealed class Configuration
         {
             [JsonProperty("Config version")]
-            public string Version = "1.0.0";
+            public string Version = "1.1.0";
 
             [JsonProperty("General")]
             public GeneralOptions General = new GeneralOptions();
@@ -218,8 +220,17 @@ namespace Oxide.Plugins
         protected override void LoadDefaultConfig()
         {
             _config = BuildDefaultConfig();
+
+            // First-load migration: if this server is coming from the classic InfoPanel
+            // and has no MIP config yet, fold its settings into our fresh defaults so the
+            // operator keeps their docks/panels. A malformed InfoPanel file never blocks startup.
+            string summary;
+            if (TryImportInfoPanel(DefaultInfoPanelPath, _config, out summary))
+                PrintWarning($"Imported existing InfoPanel config — {summary}");
+            else
+                PrintWarning("Created a new default configuration file.");
+
             SaveConfig();
-            PrintWarning("Created a new default configuration file.");
         }
 
         protected override void LoadConfig()
@@ -343,6 +354,173 @@ namespace Oxide.Plugins
 
         #endregion
 
+        #region InfoPanel import
+
+        // Where the classic InfoPanel keeps its config. Resolves under Carbon's Oxide-compat
+        // layer too. Used by the first-load auto-import and the `mipanel import` command.
+        private string DefaultInfoPanelPath => Path.Combine(Interface.Oxide.ConfigDirectory, "InfoPanel.json");
+
+        // InfoPanel panel names (and common community variants) mapped onto MIP's built-in
+        // panel ids. Case-insensitive; names not listed are tried as-is, then skipped.
+        private static readonly Dictionary<string, string> InfoPanelAliases =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Clock"] = PClock,
+                ["Balance"] = PBalance, ["Economics"] = PBalance, ["Money"] = PBalance,
+                ["Points"] = PPoints, ["ServerRewards"] = PPoints, ["RP"] = PPoints,
+                ["OnlinePlayers"] = POnline, ["OnlineGamers"] = POnline, ["Online"] = POnline, ["Players"] = POnline,
+                ["Sleepers"] = PSleepers,
+                ["Coordinates"] = PCoordinates, ["Coord"] = PCoordinates, ["Location"] = PCoordinates, ["Position"] = PCoordinates,
+                ["AirdropEvent"] = PAirdrop, ["AirplaneEvent"] = PAirdrop, ["Airdrop"] = PAirdrop, ["Airplane"] = PAirdrop,
+                ["HelicopterEvent"] = PHeli, ["Helicopter"] = PHeli, ["Heli"] = PHeli, ["PatrolHelicopter"] = PHeli,
+                ["ChinookEvent"] = PChinook, ["Chinook"] = PChinook, ["CH47"] = PChinook,
+                ["CargoShipEvent"] = PCargo, ["CargoShip"] = PCargo, ["Cargo"] = PCargo,
+                ["BradleyEvent"] = PBradley, ["Bradley"] = PBradley, ["APC"] = PBradley,
+                ["RadiationEvent"] = PRadiation, ["Radiation"] = PRadiation, ["Rad"] = PRadiation,
+                ["Compass"] = PCompass,
+                ["Messages"] = PMessages, ["ServerInfo"] = PMessages, ["Welcome"] = PMessages, ["Announcement"] = PMessages, ["News"] = PMessages
+            };
+
+        // Read an InfoPanel config from `path` and overlay everything we recognise onto `cfg`
+        // (a merge — MIP defaults survive for anything absent). Unknown panels are logged and
+        // skipped. Returns false (reason in `summary`) when the file is missing/malformed/empty.
+        private bool TryImportInfoPanel(string path, Configuration cfg, out string summary)
+        {
+            summary = path;
+            if (string.IsNullOrEmpty(path) || !File.Exists(path)) return false;
+
+            JObject src;
+            try { src = JObject.Parse(File.ReadAllText(path)); }
+            catch (Exception ex) { summary = ex.Message; return false; }
+
+            int docks = 0, panels = 0;
+            var skipped = new List<string>();
+
+            // Docks — InfoPanel shares MIP's four dock names, so match by key.
+            var srcDocks = src["Docks"] as JObject;
+            if (srcDocks != null)
+                foreach (var prop in srcDocks.Properties())
+                {
+                    DockConfig dock;
+                    var obj = prop.Value as JObject;
+                    if (obj == null || !cfg.Docks.TryGetValue(prop.Name, out dock)) continue;
+                    ImportDock(obj, dock);
+                    docks++;
+                }
+
+            // Panels — resolve each name through the alias table (falling back to the raw name),
+            // overlay onto the matching MIP panel, or record it as skipped.
+            var srcPanels = src["Panels"] as JObject;
+            if (srcPanels != null)
+                foreach (var prop in srcPanels.Properties())
+                {
+                    var obj = prop.Value as JObject;
+                    if (obj == null) continue;
+
+                    string mip;
+                    if (!InfoPanelAliases.TryGetValue(prop.Name, out mip)) mip = prop.Name;
+
+                    PanelConfig panel;
+                    if (cfg.Panels.TryGetValue(mip, out panel)) { ImportPanel(obj, panel, cfg); panels++; }
+                    else skipped.Add(prop.Name);
+                }
+
+            if (docks == 0 && panels == 0) return false;
+
+            summary = $"{docks} dock(s), {panels} panel(s)";
+            if (skipped.Count > 0)
+            {
+                summary += $", {skipped.Count} skipped";
+                PrintWarning($"InfoPanel import skipped {skipped.Count} unrecognised panel(s): {string.Join(", ", skipped.ToArray())}");
+            }
+            return true;
+        }
+
+        private static void ImportDock(JObject src, DockConfig dock)
+        {
+            dock.Enabled = Bool(src, "Available", dock.Enabled);
+            dock.AnchorX = Str(src, "AnchorX", dock.AnchorX);
+            dock.AnchorY = Str(src, "AnchorY", dock.AnchorY);
+            dock.Width = Float(src, "Width", dock.Width);
+            dock.Height = Float(src, "Height", dock.Height);
+            dock.BackgroundColor = Str(src, "BackgroundColor", dock.BackgroundColor);
+
+            // InfoPanel positions docks with a CUI margin "left top right bottom"; MIP uses a
+            // single distance from each anchored edge. Best-effort: take the anchored sides.
+            float[] m = ParseQuad(Str(src, "Margin", null));
+            if (m != null)
+            {
+                dock.OffsetX = string.Equals(dock.AnchorX, "Right", StringComparison.OrdinalIgnoreCase) ? m[2] : m[0];
+                dock.OffsetY = string.Equals(dock.AnchorY, "Top", StringComparison.OrdinalIgnoreCase) ? m[1] : m[3];
+            }
+        }
+
+        private static void ImportPanel(JObject src, PanelConfig panel, Configuration cfg)
+        {
+            // InfoPanel gates a panel on both Available and Autoload.
+            panel.Enabled = Bool(src, "Available", panel.Enabled) && Bool(src, "Autoload", true);
+
+            string dock = Str(src, "Dock", panel.Dock);
+            if (!string.IsNullOrEmpty(dock) && cfg.Docks.ContainsKey(dock)) panel.Dock = dock;
+
+            panel.Order = (int)Float(src, "Order", panel.Order);
+            panel.Width = Float(src, "Width", panel.Width);
+            panel.BackgroundColor = Str(src, "BackgroundColor", panel.BackgroundColor);
+
+            var img = src["Image"] as JObject;
+            if (img != null && panel.Image != null)
+            {
+                panel.Image.Url = Str(img, "Url", panel.Image.Url);
+                panel.Image.Color = Str(img, "Color", panel.Image.Color);
+                panel.Image.Width = Float(img, "Width", panel.Image.Width);
+            }
+
+            var txt = src["Text"] as JObject;
+            if (txt != null && panel.Text != null)
+            {
+                panel.Text.FontSize = (int)Float(txt, "FontSize", panel.Text.FontSize);
+                panel.Text.Color = Str(txt, "FontColor", panel.Text.Color);
+                panel.Text.Align = Str(txt, "Align", panel.Text.Align);
+                panel.Text.Content = Str(txt, "Content", panel.Text.Content);
+            }
+        }
+
+        // Tolerant JSON readers — never throw on a missing or wrong-typed key.
+        private static string Str(JObject o, string key, string fallback)
+        {
+            JToken t;
+            return o != null && o.TryGetValue(key, out t) && t.Type != JTokenType.Null ? t.ToString() : fallback;
+        }
+
+        private static bool Bool(JObject o, string key, bool fallback)
+        {
+            JToken t;
+            if (o == null || !o.TryGetValue(key, out t)) return fallback;
+            bool b;
+            return bool.TryParse(t.ToString(), out b) ? b : fallback;
+        }
+
+        private static float Float(JObject o, string key, float fallback)
+        {
+            JToken t;
+            if (o == null || !o.TryGetValue(key, out t)) return fallback;
+            float f;
+            return float.TryParse(t.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out f) ? f : fallback;
+        }
+
+        private static float[] ParseQuad(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return null;
+            string[] parts = s.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length != 4) return null;
+            var v = new float[4];
+            for (int i = 0; i < 4; i++)
+                if (!float.TryParse(parts[i], NumberStyles.Float, CultureInfo.InvariantCulture, out v[i])) return null;
+            return v;
+        }
+
+        #endregion
+
         #region Localization
 
         protected override void LoadDefaultMessages()
@@ -367,6 +545,10 @@ namespace Oxide.Plugins
                 ["NoPermission"] = "You don't have permission to do that.",
                 ["PlayerOnly"] = "Only the <color=#e2a44a>reload</color> subcommand can be used from the console; the rest are per-player. Run them in-game.",
                 ["Reloaded"] = "Modern Info Panel reloaded.",
+                ["HelpImport"] = "<color=#e2a44a>/mipanel import [path]</color> — import an existing InfoPanel config.",
+                ["ImportOk"] = "Imported InfoPanel config — {0}.",
+                ["ImportNone"] = "No InfoPanel config found at {0}.",
+                ["ImportFailed"] = "InfoPanel import failed: {0}.",
                 ["PlayersLabel"] = "{0} / {1}",
                 ["DirN"] = "North", ["DirNE"] = "Northeast", ["DirE"] = "East", ["DirSE"] = "Southeast",
                 ["DirS"] = "South", ["DirSW"] = "Southwest", ["DirW"] = "West", ["DirNW"] = "Northwest"
@@ -1075,6 +1257,25 @@ namespace Oxide.Plugins
                 return;
             }
 
+            if (sub == "import")
+            {
+                bool ok = authorizedConsole || (player != null && permission.UserHasPermission(id, PermAdmin));
+                if (!ok) { reply(L("NoPermission", id)); return; }
+
+                string path = args.Length >= 2 ? args[1] : DefaultInfoPanelPath;
+                if (!File.Exists(path)) { reply(L("ImportNone", id, path)); return; }
+
+                string summary;
+                if (TryImportInfoPanel(path, _config, out summary))
+                {
+                    SaveConfig();   // persist the merged config...
+                    DoReload();     // ...then re-read it from disk and redraw every panel.
+                    reply(L("ImportOk", id, summary));
+                }
+                else reply(L("ImportFailed", id, summary));
+                return;
+            }
+
             if (player == null)
             {
                 // Server console / RCON: the remaining subcommands are per-player.
@@ -1115,11 +1316,17 @@ namespace Oxide.Plugins
             }
         }
 
-        private string HelpText(string id) => string.Join("\n", new[]
+        private string HelpText(string id)
         {
-            L("HelpTitle", id), L("HelpToggle", id), L("HelpClockGame", id),
-            L("HelpClockServer", id), L("HelpTimeFormat", id)
-        });
+            var lines = new List<string>
+            {
+                L("HelpTitle", id), L("HelpToggle", id), L("HelpClockGame", id),
+                L("HelpClockServer", id), L("HelpTimeFormat", id)
+            };
+            if (id != null && permission.UserHasPermission(id, PermAdmin))
+                lines.Add(L("HelpImport", id));
+            return string.Join("\n", lines);
+        }
 
         private void HandleClock(string id, string[] args, Action<string> reply)
         {
