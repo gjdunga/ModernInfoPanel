@@ -1,0 +1,50 @@
+{
+  "Update interval (seconds)": 1.0,
+  "Rotator interval (seconds)": 8.0,
+  "Show panel to everyone (no permission required)": true,
+  "Clock mode (realtime | gametime)": "realtime",
+  "Clock format (.NET date/time format string)": "HH:mm",
+  "Rotating announcement messages": [
+    "Welcome! Type /infopanel to toggle this panel.",
+    "Be respectful - no harassment or cheating.",
+    "Need help? Ask a moderator in chat."
+  ],
+  "Blocks": [
+    {
+      "Id": "clock",
+      "Enabled": true,
+      "Type (clock | players | rotator | text)": "clock",
+      "Anchor min (x y, 0-1)": "0.0 0.96",
+      "Anchor max (x y, 0-1)": "0.10 1.0",
+      "Background color (R G B A, 0-1)": "0.10 0.10 0.10 0.75",
+      "Text color (R G B A, 0-1)": "1 1 1 1",
+      "Font size": 14,
+      "Text alignment (TextAnchor)": "MiddleCenter",
+      "Static text (text blocks only; empty = localized welcome)": ""
+    },
+    {
+      "Id": "players",
+      "Enabled": true,
+      "Type (clock | players | rotator | text)": "players",
+      "Anchor min (x y, 0-1)": "0.10 0.96",
+      "Anchor max (x y, 0-1)": "0.27 1.0",
+      "Background color (R G B A, 0-1)": "0.10 0.10 0.10 0.75",
+      "Text color (R G B A, 0-1)": "1 1 1 1",
+      "Font size": 14,
+      "Text alignment (TextAnchor)": "MiddleCenter",
+      "Static text (text blocks only; empty = localized welcome)": ""
+    },
+    {
+      "Id": "rotator",
+      "Enabled": true,
+      "Type (clock | players | rotator | text)": "rotator",
+      "Anchor min (x y, 0-1)": "0.27 0.96",
+      "Anchor max (x y, 0-1)": "0.73 1.0",
+      "Background color (R G B A, 0-1)": "0.10 0.10 0.10 0.60",
+      "Text color (R G B A, 0-1)": "1 1 1 1",
+      "Font size": 14,
+      "Text alignment (TextAnchor)": "MiddleCenter",
+      "Static text (text blocks only; empty = localized welcome)": ""
+    }
+  ]
+}

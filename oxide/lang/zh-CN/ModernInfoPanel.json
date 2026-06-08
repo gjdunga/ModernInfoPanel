@@ -1,0 +1,9 @@
+{
+  "ClockLabel": "{0}",
+  "PlayersLabel": "{0} / {1} 在线",
+  "Welcome": "欢迎来到我们的 Rust 服务器！",
+  "PanelShown": "信息面板已<color=#9f9>显示</color>。",
+  "PanelHidden": "信息面板已<color=#f99>隐藏</color>。",
+  "Reloaded": "ModernInfoPanel 已重新加载。",
+  "NoPermission": "您没有权限使用该命令。"
+}

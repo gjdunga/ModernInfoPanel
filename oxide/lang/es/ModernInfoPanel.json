@@ -1,0 +1,9 @@
+{
+  "ClockLabel": "{0}",
+  "PlayersLabel": "{0} / {1} en línea",
+  "Welcome": "¡Bienvenido a nuestro servidor de Rust!",
+  "PanelShown": "Panel de información <color=#9f9>mostrado</color>.",
+  "PanelHidden": "Panel de información <color=#f99>oculto</color>.",
+  "Reloaded": "ModernInfoPanel recargado.",
+  "NoPermission": "No tienes permiso para usar ese comando."
+}

@@ -1,0 +1,45 @@
+{
+  "name": "ModernInfoPanel",
+  "title": "Modern Info Panel",
+  "version": "1.0.0",
+  "author": "Gabriel Dungan (DunganSoft Technologies)",
+  "author_handle": "gjdunga",
+  "description": "Configurable on-screen information panel (clock, players online, rotating announcements) for Rust. Oxide and Carbon compatible.",
+  "license": "GPL-3.0",
+  "game": "rust",
+  "language": "csharp",
+  "tags": ["ui", "hud", "gui", "info", "panel", "clock", "announcements", "oxide", "carbon"],
+  "permissions": [
+    {
+      "name": "moderninfopanel.use",
+      "description": "Allows a player to see and toggle the info panel (only enforced when the panel is not shown to everyone)."
+    },
+    {
+      "name": "moderninfopanel.admin",
+      "description": "Allows reloading the configuration via /infopanel reload and the console command."
+    }
+  ],
+  "commands": [
+    {
+      "command": "infopanel",
+      "arguments": "[on|off|toggle|reload]",
+      "description": "Toggle your info panel; 'reload' (admin) reloads the config and redraws all panels."
+    },
+    {
+      "command": "moderninfopanel.reload",
+      "arguments": "",
+      "description": "Console command (admin) to reload the configuration and redraw all panels."
+    }
+  ],
+  "compatibility": {
+    "oxide_minimum": "2.0.7022",
+    "oxide_verified": "2.0.7423"
+  },
+  "compatible_frameworks": ["oxide", "carbon"],
+  "links": {
+    "source": "https://github.com/gjdunga/ModernInfoPanel",
+    "documentation": "https://github.com/gjdunga/ModernInfoPanel#readme",
+    "issues": "https://github.com/gjdunga/ModernInfoPanel/issues",
+    "website": "https://github.com/gjdunga/ModernInfoPanel"
+  }
+}

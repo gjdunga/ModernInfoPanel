@@ -1,0 +1,9 @@
+{
+  "ClockLabel": "{0}",
+  "PlayersLabel": "{0} / {1} praesentes",
+  "Welcome": "Grati venis ad servum nostrum Rust!",
+  "PanelShown": "Tabula informationis <color=#9f9>monstrata</color>.",
+  "PanelHidden": "Tabula informationis <color=#f99>occulta</color>.",
+  "Reloaded": "ModernInfoPanel iterum oneratus.",
+  "NoPermission": "Tibi non licet hoc mandato uti."
+}

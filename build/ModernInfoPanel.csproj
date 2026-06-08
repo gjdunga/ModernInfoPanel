@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Out-of-server compile chain for ModernInfoPanel.
+
+    This project type-checks oxide/plugins/ModernInfoPanel.cs against the real
+    Oxide/Rust/Unity assemblies so API breaks are caught at build time. It does
+    NOT produce the shipped artifact (that is the raw .cs file); the DLL is
+    throwaway.
+
+    Supply the reference assemblies first (one-time):
+      tools/fetch-references.sh --managed-only         (Linux/macOS)
+      tools/fetch-references.ps1 -ManagedOnly          (Windows)
+    or point at an existing server's Managed folder:
+      dotnet build build/ModernInfoPanel.csproj -p:ManagedDir=/path/to/RustDedicated_Data/Managed
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>ModernInfoPanel.compile</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <!-- Where the Rust server Managed/ assemblies live. Override via -p:ManagedDir=... or $MANAGED_DIR. -->
+    <ManagedDir Condition="'$(ManagedDir)' == ''">$(MSBuildProjectDirectory)/../references/RustDedicated_Data/Managed</ManagedDir>
+    <ManagedDir Condition="'$(MANAGED_DIR)' != ''">$(MANAGED_DIR)</ManagedDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="../oxide/plugins/ModernInfoPanel.cs" />
+  </ItemGroup>
+
+  <!--
+    Reference every game/Oxide assembly in Managed/, but exclude:
+      - Oxide.References.dll  -> forwards Newtonsoft.Json and collides (CS0433)
+                                 with the standalone Newtonsoft.Json.dll.
+      - the framework facades  -> the net48 reference assemblies (provided by the
+                                  SDK) supply these; the game's copies duplicate them.
+  -->
+  <ItemGroup>
+    <Reference Include="$(ManagedDir)/*.dll"
+               Exclude="$(ManagedDir)/Oxide.References.dll;$(ManagedDir)/mscorlib.dll;$(ManagedDir)/System.dll;$(ManagedDir)/System.Core.dll;$(ManagedDir)/System.Xml.dll;$(ManagedDir)/System.Xml.Linq.dll;$(ManagedDir)/System.Data.dll;$(ManagedDir)/System.Runtime.dll;$(ManagedDir)/netstandard.dll">
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>
