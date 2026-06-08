@@ -3,7 +3,7 @@
 ## Install
 
 1. Download `ModernInfoPanel.cs` from the
-   [latest release](https://github.com/gjdunga/ModernInfoPanel/releases).
+   [v1.0.0 release](https://github.com/gjdunga/ModernInfoPanel/releases/tag/v1.0.0).
 2. Upload it to your server:
    - **Oxide:** `oxide/plugins/ModernInfoPanel.cs`
    - **Carbon:** `carbon/plugins/ModernInfoPanel.cs`
