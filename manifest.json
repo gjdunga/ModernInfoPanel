@@ -1,7 +1,7 @@
 {
   "name": "ModernInfoPanel",
   "title": "Modern Info Panel",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Gabriel Dungan (DunganSoft Technologies)",
   "author_handle": "gjdunga",
   "description": "Configurable corner HUD panels for Rust: clock, rotating announcements, balance, points, coordinates, compass, online/sleeper counts and live event indicators (airdrop, helicopter, chinook, cargo ship, bradley, radiation). Oxide and Carbon compatible, with a reflection-free API for custom panels.",
@@ -12,14 +12,14 @@
   "permissions": [
     {
       "name": "moderninfopanel.admin",
-      "description": "Allows reloading the configuration via 'mipanel reload' from chat, console, or RCON (the server console and RCON are always authorized)."
+      "description": "Allows 'mipanel reload' and 'mipanel import' (import an existing InfoPanel config) from chat, console, or RCON (the server console and RCON are always authorized)."
     }
   ],
   "commands": [
     {
       "command": "mipanel",
-      "arguments": "[hide|show|clock game|clock server [offset]|timeformat [index]|reload]",
-      "description": "Universal command (chat /mipanel, in-game F1 console, server console, and RCON as 'mipanel ...'). Manage your panel (hide/show, clock mode/offset, time format); 'reload' is admin/server-only and works from any context."
+      "arguments": "[hide|show|clock game|clock server [offset]|timeformat [index]|reload|import [path]]",
+      "description": "Universal command (chat /mipanel, in-game F1 console, server console, and RCON as 'mipanel ...'). Manage your panel (hide/show, clock mode/offset, time format); 'reload' and 'import' are admin/server-only and work from any context."
     }
   ],
   "compatibility": {

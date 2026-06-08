@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Dates are UTC.
 
+## [1.1.0] - 2026-06-08
+
+### Added
+- **InfoPanel config import** for a smooth migration from the classic InfoPanel
+  plugin. On first load (when no Modern Info Panel config exists yet), an existing
+  `oxide/config/InfoPanel.json` is detected and its docks/panels are folded into the
+  generated config; admins, the server console, and RCON can also run
+  `mipanel import [path]` at any time. Recognized docks and panels are matched by
+  name (via an alias table) and merged onto MIP's defaults; unrecognized panels are
+  logged and skipped, and InfoPanel's file is read-only and never modified.
+- Localized messages `HelpImport`, `ImportOk`, `ImportNone`, and `ImportFailed`
+  across all 8 locales.
+
 ## [1.0.0] - 2026-06-08
 
 ### Added
