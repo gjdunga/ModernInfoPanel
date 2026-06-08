@@ -35,7 +35,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Modern Info Panel", "gjdunga", "1.3.1")]
+    [Info("Modern Info Panel", "gjdunga", "1.3.2")]
     [Description("Configurable corner HUD panels: clock, announcements, balance, points, coordinates, compass, player counts and live event indicators. Oxide + Carbon compatible.")]
     public class ModernInfoPanel : RustPlugin
     {
@@ -144,7 +144,7 @@ namespace Oxide.Plugins
         private sealed class Configuration
         {
             [JsonProperty("Config version")]
-            public string Version = "1.3.1";
+            public string Version = "1.3.2";
 
             [JsonProperty("General")]
             public GeneralOptions General = new GeneralOptions();
@@ -257,7 +257,7 @@ namespace Oxide.Plugins
             }
             catch (Exception ex)
             {
-                PrintError($"Invalid configuration ({ex.Message}); regenerating defaults. The old file is backed up by Oxide.");
+                LogProblem($"Invalid configuration ({ex.Message}); regenerating defaults. The old file is backed up by Oxide.");
                 _config = BuildDefaultConfig();
             }
             SaveConfig();
@@ -430,7 +430,7 @@ namespace Oxide.Plugins
             {
                 // Keep the raw parser detail server-side only; the player-facing reply
                 // gets the generic ImportFailed message (the path), never file contents.
-                LogImport($"InfoPanel import from \"{path}\" failed to parse: {ex.Message}");
+                LogProblem($"InfoPanel import from \"{path}\" failed to parse: {ex.Message}");
                 summary = path;
                 return false;
             }
@@ -492,11 +492,12 @@ namespace Oxide.Plugins
             LogToFile("import", text, this);
         }
 
-        // Emit an operator-facing problem to the server console and a durable logfile
-        // (oxide/logs/ModernInfoPanel/) — used for rejected/malformed third-party input.
+        // Emit an operator-facing error to the server console (PrintError) and a durable
+        // logfile (oxide/logs/ModernInfoPanel/) — the single path for rejected/invalid
+        // third-party input and config problems.
         private void LogProblem(string text)
         {
-            PrintWarning(text);
+            PrintError(text);
             LogToFile("errors", text, this);
         }
 
@@ -1576,18 +1577,18 @@ namespace Oxide.Plugins
 
             PanelConfig cfg;
             try { cfg = JsonConvert.DeserializeObject<PanelConfig>(json); }
-            catch (Exception ex) { PrintWarning($"PanelRegister: bad JSON from {pluginName} for {panelName}: {ex.Message}"); return false; }
+            catch (Exception ex) { LogProblem($"PanelRegister: bad JSON from {pluginName} for {panelName}: {ex.Message}"); return false; }
             if (cfg == null) return false;
 
             if (BuiltInPanels.Contains(panelName))
             {
-                PrintWarning($"PanelRegister: '{panelName}' from {pluginName} collides with a built-in panel id; rejected.");
+                LogProblem($"PanelRegister: '{panelName}' from {pluginName} collides with a built-in panel id; rejected.");
                 return false;
             }
 
             if (panelName.Length > MaxPanelNameLen)
             {
-                PrintWarning($"PanelRegister: panel name from {pluginName} exceeds {MaxPanelNameLen} chars; rejected.");
+                LogProblem($"PanelRegister: panel name from {pluginName} exceeds {MaxPanelNameLen} chars; rejected.");
                 return false;
             }
 
@@ -1596,7 +1597,7 @@ namespace Oxide.Plugins
             bool isNew = owned == null || !owned.Contains(panelName);
             if (isNew && owned != null && owned.Count >= MaxPanelsPerPlugin)
             {
-                PrintWarning($"PanelRegister: {pluginName} reached the {MaxPanelsPerPlugin}-panel limit; '{panelName}' rejected.");
+                LogProblem($"PanelRegister: {pluginName} reached the {MaxPanelsPerPlugin}-panel limit; '{panelName}' rejected.");
                 return false;
             }
 
