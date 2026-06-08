@@ -1050,8 +1050,13 @@ namespace Oxide.Plugins
         {
             if (arg == null) return;
             BasePlayer player = arg.Player();
+            // arg.Args is StringView[] on current Rust; use the plain FullString.
+            string full = arg.FullString;
+            string[] args = string.IsNullOrEmpty(full)
+                ? new string[0]
+                : full.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
             // No player => server console / RCON, which are always authorized.
-            RunCommand(player, player == null, arg.Args ?? new string[0], s => arg.ReplyWith(s));
+            RunCommand(player, player == null, args, s => arg.ReplyWith(s));
         }
 
         // Shared logic. `reply` adapts output to chat or console; when
