@@ -3,7 +3,7 @@
 [![Standards](https://github.com/gjdunga/ModernInfoPanel/actions/workflows/standards.yml/badge.svg)](https://github.com/gjdunga/ModernInfoPanel/actions/workflows/standards.yml)
 [![Compile](https://github.com/gjdunga/ModernInfoPanel/actions/workflows/compile.yml/badge.svg)](https://github.com/gjdunga/ModernInfoPanel/actions/workflows/compile.yml)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
-![Version](https://img.shields.io/badge/version-1.4.0-informational)
+![Version](https://img.shields.io/badge/version-1.5.0-informational)
 
 A configurable corner-HUD information panel for Rust — a modern, security- and
 performance-minded rebuild of the classic InfoPanel concept. Four corner "docks"
@@ -24,6 +24,9 @@ event indicators. **Compatible with both Oxide and Carbon.**
 - **Player counts** — live `online / max` and sleeper counters.
 - **Live event indicators** — airdrop, patrol helicopter, chinook, cargo ship,
   bradley, and radiation icons that recolor while the event is active.
+- **Per-player status glow** — the optional `Status` panel tints its icon to each viewer's own
+  live state (hostile-in-safezone, being raided, in a safe zone, AFK, or building-authed).
+- **Progress bars** — panels can carry a fill bar that other plugins drive live (0–1) via the API.
 - **Per-player control** — players hide/show their panel and tune their clock with
   `/mipanel`; their choices persist across reconnects.
 - **Per-panel permissions** — optionally gate any panel behind a permission.
@@ -89,8 +92,8 @@ sections:
 Built-in panel names: `Clock`, `Messages`, `Balance`, `Points`, `Coordinates`,
 `Compass`, `OnlinePlayers`, `Sleepers`, `AirdropEvent`, `HelicopterEvent`,
 `ChinookEvent`, `CargoShipEvent`, `BradleyEvent`, `RadiationEvent`, `ServerFPS`,
-`Ping`, `WipeCountdown`. `Compass`, `BradleyEvent`, `RadiationEvent`, `ServerFPS`,
-`Ping`, and `WipeCountdown` ship disabled.
+`Ping`, `WipeCountdown`, `Status`. `Compass`, `BradleyEvent`, `RadiationEvent`, `ServerFPS`,
+`Ping`, `WipeCountdown`, and `Status` ship disabled.
 
 ### Dynamic content
 
@@ -100,6 +103,13 @@ Built-in panel names: `Clock`, `Messages`, `Balance`, `Points`, `Coordinates`,
   **PlaceholderAPI** plugin is installed, any remaining `{tokens}` are passed to it (toggle in `General`).
 - **Clickable panels** — set a panel's `Run command on click` to a console command (run as the
   clicking player; placeholders resolved), e.g. `chat.say "/shop"`.
+- **Status glow** — enable the `Status` panel for a per-player indicator that tints its icon to the
+  viewer's own live state. The state→color map and thresholds live in the panel's `Settings`:
+  `SafeHostileColor` (red, hostile inside a safe zone — turrets will fire), `RaidColor` (yellow,
+  set for `RaidWindowSeconds` when your building blocks/doors/TC take explosive damage), `SafeColor`
+  (green, inside a safe zone), `AfkColor` (blue, idle for `AfkSeconds`), and `BuildingPrivColor`
+  (white, building-authorized). `Priority` is the comma-separated order they're evaluated in; the
+  first match wins. Swap the placeholder `Image → Url` for your own themed indicator icon.
 - **Wipe countdown** — the `WipeCountdown` panel shows `Wipe in Xd Yh`. The cadence comes from the
   server's browser tags (`weekly`/`biweekly`/`monthly`) unless you set `Wipe schedule → Interval`
   (`custom` uses `Custom interval days`); the anchor is the real last **map** wipe — detected via
@@ -122,6 +132,8 @@ Other plugins can manage their own panels without any Reflection:
 ModernInfoPanel?.Call("PanelRegister", Title, "MyPanel", json);
 ModernInfoPanel?.Call("SetPanelText", "MyPanel", "Hello", playerIdOrNull);
 ModernInfoPanel?.Call("SetPanelImage", "MyPanel", url, "1 1 1 1", playerIdOrNull);
+ModernInfoPanel?.Call("SetPanelProgress", "MyPanel", 0.42, playerIdOrNull); // 0..1 fill (panel needs a Progress element)
+ModernInfoPanel?.Call("SetPanelColor", "MyPanel", "1 1 0 1", playerIdOrNull); // flash the panel's image glow
 ModernInfoPanel?.Call("ShowPanel", "MyPanel", playerIdOrNull);
 ModernInfoPanel?.Call("HidePanel", "MyPanel", playerIdOrNull);
 ModernInfoPanel?.Call("RefreshPanel", "MyPanel", playerIdOrNull);
@@ -131,10 +143,15 @@ bool loaded = (bool)(ModernInfoPanel?.Call("IsPlayerGUILoaded", playerId) ?? fal
 
 Panels a plugin registers are removed automatically when that plugin unloads.
 
-The API is sandboxed to a plugin's **own** panels: `SetPanelText`/`SetPanelImage`/`ShowPanel`/
-`HidePanel` only act on panels created via `PanelRegister` — the built-in panels can't be
-targeted. Registrations are capped at **25 panels per plugin**, panel names at 64 characters,
-panel text at 256 characters, and image URLs must be `http(s)`.
+The API is sandboxed to a plugin's **own** panels: `SetPanelText`/`SetPanelImage`/`SetPanelProgress`/
+`SetPanelColor`/`ShowPanel`/`HidePanel` only act on panels created via `PanelRegister` — the built-in
+panels can't be targeted. Registrations are capped at **25 panels per plugin**, panel names at 64
+characters, panel text at 256 characters, progress values are clamped to `0..1`, and image URLs must
+be `http(s)`.
+
+> **No universal API standard:** there isn't a shared cross-plugin API standard in the Oxide/Carbon
+> ecosystem — each InfoPanel-family plugin exposes its own `plugin.Call(...)` surface. The calls
+> above are Modern Info Panel's; they're reflection-free so they resolve cleanly on both frameworks.
 
 ## Migrating from InfoPanel
 
