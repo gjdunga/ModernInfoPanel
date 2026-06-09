@@ -5,7 +5,7 @@
 > the screenshots and confirm the price before publishing. Regenerate on each release.
 
 - **Title:** Modern Info Panel
-- **Version:** 1.4.0
+- **Version:** 1.6.0
 - **Price:** Free
 - **Tags:** ui, hud, gui, info, panel, clock, compass, events, announcements, oxide, carbon
 - **Compatibility:** Oxide **2.0.7022+** (verified 2.0.7423) · also supports **Carbon**
@@ -25,20 +25,20 @@ Configurable corner HUD panels for Rust: clock, rotating announcements, balance,
 - **Compass** — eight-point text direction (localized) or raw degrees.
 - **Player counts** — live `online / max` and sleeper counters.
 - **Live event indicators** — airdrop, patrol helicopter, chinook, cargo ship,
-- **Per-player control** — players hide/show their panel and tune their clock with
-- **Per-panel permissions** — optionally gate any panel behind a permission.
+- **Per-player status glow** — the optional `Status` panel tints its icon to each viewer's own
+- **Progress bars** — panels can carry a fill bar that other plugins drive live (0–1) via the API.
 
 ## Permissions
 
 | Permission | Description |
 | --- | --- |
-| moderninfopanel.admin | Allows 'mipanel reload' and 'mipanel import' (import an existing InfoPanel config) from chat, console, or RCON (the server console and RCON are always authorized). |
+| moderninfopanel.admin | Allows the in-game editor ('mipanel admin'), 'mipanel reload', and 'mipanel import' (import an existing InfoPanel config) from chat, console, or RCON (the server console and RCON are always authorized). |
 
 ## Commands
 
 | Command | Arguments | Description |
 | --- | --- | --- |
-| `mipanel` | `[hide|show|clock game|clock server [offset]|timeformat [index]|reload|import [path]]` | Universal command (chat /mipanel, in-game F1 console, server console, and RCON as 'mipanel ...'). Manage your panel (hide/show, clock mode/offset, time format); 'reload' and 'import' are admin/server-only and work from any context. |
+| `mipanel` | `[hide|show|clock game|clock server [offset]|timeformat [index]|tz <zone|off>|admin|reload|import [path]]` | Universal command (chat /mipanel, in-game F1 console, server console, and RCON as 'mipanel ...'). Manage your panel (hide/show, clock mode/offset, time format, per-player timezone via 'tz'); 'admin' opens the in-game editor and 'reload'/'import' are admin/server-only — all work from any context. |
 
 ## Installation
 
@@ -46,23 +46,17 @@ Configurable corner HUD panels for Rust: clock, rotating announcements, balance,
 2. Upload it to `oxide/plugins/ModernInfoPanel.cs` on your server.
 3. The plugin compiles and loads automatically; a default config is written to `oxide/config/ModernInfoPanel.json` on first load.
 
-## What's new in 1.4.0
+## What's new in 1.6.0
 
 ### Added
-- **Dynamic placeholders** in panel `Static content` and rotating announcements — `{name}`,
-  `{online}`, `{max}`, `{sleepers}`, `{grid}`, `{coords}`, `{x}`, `{z}`, `{time}`, `{balance}`,
-  `{points}`, `{server}`, `{wipe}`, `{lastwipe}` — resolved per-viewer. Optional pass-through to
-  the **PlaceholderAPI** plugin if it's installed (`General → Resolve {tokens} via PlaceholderAPI`).
-- **Clickable panels** — set a panel's `Run command on click` to a console command (run as the
-  clicking player; placeholders resolved) to turn it into a launcher.
-- **Three new built-in panels** (all disabled by default): `ServerFPS`, `Ping`, and
-  `WipeCountdown`.
-- **Wipe countdown** — shows `Wipe in Xd Yh`. The cadence is auto-detected from the server's
-  browser tags (`weekly`/`biweekly`/`monthly`; override or `custom` in `Wipe schedule`), and the
-  anchor is the **actual last map wipe** — detected via the `OnNewSave` hook (map wipe, *not* a
-  blueprint wipe) and the save-file timestamp on first run. Warns once if the cadence is unset.
-- **Panel fade-in** — `General → Panel fade-in seconds` (0 = off); fades panels in on draw without
-  re-fading on value updates.
+- **In-game admin editor** — `/mipanel admin` (permission `moderninfopanel.admin`) opens a
+  cursor UI to toggle panels and docks on/off, reassign a panel's dock, nudge its width, and
+  set its background color from a swatch palette; changes save and redraw live. No ImageLibrary.
+- **Per-player timezones** — `/mipanel tz <IANA zone>` (e.g. `America/Denver`) sets a
+  DST-correct per-player clock; `/mipanel tz off` reverts. Resolves on hosts with an IANA
+  timezone database (Linux/mono Rust servers).
+- **Theming kit** — `THEMING.md` plus a layered, editable `assets/theme/panel-template.svg`
+  for building custom panel art and color themes.
 
 ## Links
 

@@ -12,7 +12,7 @@
   "permissions": [
     {
       "name": "moderninfopanel.admin",
-      "description": "Allows 'mipanel reload' and 'mipanel import' (import an existing InfoPanel config) from chat, console, or RCON (the server console and RCON are always authorized)."
+      "description": "Allows the in-game editor ('mipanel admin'), 'mipanel reload', and 'mipanel import' (import an existing InfoPanel config) from chat, console, or RCON (the server console and RCON are always authorized)."
     }
   ],
   "commands": [
