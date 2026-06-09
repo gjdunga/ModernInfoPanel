@@ -35,7 +35,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Modern Info Panel", "gjdunga", "1.5.0")]
+    [Info("Modern Info Panel", "gjdunga", "1.6.0")]
     [Description("Configurable corner HUD panels: clock, announcements, balance, points, coordinates, compass, player counts and live event indicators. Oxide + Carbon compatible.")]
     public class ModernInfoPanel : RustPlugin
     {
@@ -52,7 +52,15 @@ namespace Oxide.Plugins
         private const string PermPrefix = "moderninfopanel.";
 
         private const string Root = "MIP_root";
+        private const string AdminRoot = "MIP_admin";
         private const string DataFile = "ModernInfoPanel";
+
+        // Preset background-color swatches offered by the admin editor (R G B A).
+        private static readonly string[] AdminPalette =
+        {
+            "0 0 0 0.45", "0 0 0 0.70", "0.10 0.10 0.12 0.80", "0.15 0.30 0.50 0.80",
+            "0.30 0.15 0.15 0.80", "0.15 0.30 0.15 0.80", "0 0 0 0"
+        };
 
         // Built-in panel identifiers.
         private const string PClock = "Clock";
@@ -165,7 +173,7 @@ namespace Oxide.Plugins
         private sealed class Configuration
         {
             [JsonProperty("Config version")]
-            public string Version = "1.5.0";
+            public string Version = "1.6.0";
 
             [JsonProperty("General")]
             public GeneralOptions General = new GeneralOptions();
@@ -710,6 +718,17 @@ namespace Oxide.Plugins
                 ["ImportFailed"] = "InfoPanel import failed: {0}.",
                 ["ImportOutside"] = "Import path must be inside the config directory.",
                 ["WipeCountdown"] = "Wipe in {0}d {1}h",
+                ["HelpTz"] = "<color=#e2a44a>/mipanel tz <zone|off></color> — set your clock timezone (e.g. America/Denver).",
+                ["TzSet"] = "Clock timezone set to {0}.",
+                ["TzUnknown"] = "Unknown timezone '{0}'. Use an IANA name like America/Denver.",
+                ["HelpAdmin"] = "<color=#e2a44a>/mipanel admin</color> — open the admin editor (toggle/move/recolor panels).",
+                ["AdminTitle"] = "Modern Info Panel — admin",
+                ["AdminDocks"] = "Docks",
+                ["AdminOn"] = "ON",
+                ["AdminOff"] = "OFF",
+                ["AdminReload"] = "Reload",
+                ["AdminClose"] = "Close",
+                ["AdminOpened"] = "Opened the admin editor.",
                 ["PlayersLabel"] = "{0} / {1}",
                 ["DirN"] = "North", ["DirNE"] = "Northeast", ["DirE"] = "East", ["DirSE"] = "Southeast",
                 ["DirS"] = "South", ["DirSW"] = "Southwest", ["DirW"] = "West", ["DirNW"] = "Northwest"
@@ -881,6 +900,7 @@ namespace Oxide.Plugins
             public string ClockMode;   // "game" | "server"
             public int ClockOffset;
             public string ClockFormat;
+            public string ClockTz;     // IANA timezone id (e.g. "America/Denver"); overrides mode/offset
         }
 
         private void LoadStoredData()
@@ -1575,7 +1595,14 @@ namespace Oxide.Plugins
             string fmt = p?.ClockFormat ?? cfg?.Get("Format", "HH:mm") ?? "HH:mm";
 
             DateTime dt;
-            if (string.Equals(mode, "server", StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrEmpty(p?.ClockTz))
+            {
+                // Per-player IANA timezone (DST-correct). Falls back to local time if the host's
+                // zone database doesn't know the id.
+                try { dt = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById(p.ClockTz)); }
+                catch { dt = DateTime.Now; }
+            }
+            else if (string.Equals(mode, "server", StringComparison.OrdinalIgnoreCase))
                 dt = DateTime.Now.AddHours(p?.ClockOffset ?? 0);
             else if (TOD_Sky.Instance != null)
                 dt = TOD_Sky.Instance.Cycle.DateTime;
@@ -1918,6 +1945,15 @@ namespace Oxide.Plugins
                     HandleTimeFormat(id, args, reply);
                     break;
 
+                case "tz":
+                    HandleTz(id, args, reply);
+                    break;
+
+                case "admin":
+                    if (permission.UserHasPermission(id, PermAdmin)) { OpenAdminMenu(player); reply(L("AdminOpened", id)); }
+                    else reply(L("NoPermission", id));
+                    break;
+
                 default:
                     reply(L("InvalidArgs", id));
                     break;
@@ -1929,11 +1965,36 @@ namespace Oxide.Plugins
             var lines = new List<string>
             {
                 L("HelpTitle", id), L("HelpToggle", id), L("HelpClockGame", id),
-                L("HelpClockServer", id), L("HelpTimeFormat", id)
+                L("HelpClockServer", id), L("HelpTimeFormat", id), L("HelpTz", id)
             };
             if (id != null && permission.UserHasPermission(id, PermAdmin))
+            {
                 lines.Add(L("HelpImport", id));
+                lines.Add(L("HelpAdmin", id));
+            }
             return string.Join("\n", lines);
+        }
+
+        // Per-player IANA timezone: `/mipanel tz <zone>` (e.g. America/Denver) or `tz off`.
+        private void HandleTz(string id, string[] args, Action<string> reply)
+        {
+            if (args.Length < 2) { reply(L("HelpTz", id)); return; }
+            string zone = args[1];
+            if (string.Equals(zone, "off", StringComparison.OrdinalIgnoreCase) || zone == "0")
+            {
+                if (PrefsRead(id)?.ClockTz != null) { Prefs(id).ClockTz = null; MarkDataDirty(); RefreshPlayer(id); }
+                reply(L("TzSet", id, "server"));
+                return;
+            }
+            try
+            {
+                TimeZoneInfo tzi = TimeZoneInfo.FindSystemTimeZoneById(zone);
+                Prefs(id).ClockTz = tzi.Id;
+                MarkDataDirty();
+                RefreshPlayer(id);
+                reply(L("TzSet", id, tzi.Id));
+            }
+            catch { reply(L("TzUnknown", id, zone)); }
         }
 
         private void HandleClock(string id, string[] args, Action<string> reply)
@@ -2028,6 +2089,140 @@ namespace Oxide.Plugins
         {
             PlayerView view;
             if (_views.TryGetValue(id, out view) && Ready(view) && view.Visible) Draw(view);
+        }
+
+        // --- Admin editor (CUI; no ImageLibrary) ----------------------------------
+        private static void AdminBtn(CuiElementContainer c, string parent, string min, string max, string color, string label, string command)
+        {
+            c.Add(new CuiButton
+            {
+                Button = { Command = command, Color = color },
+                Text = { Text = label, FontSize = 10, Align = TextAnchor.MiddleCenter, Color = "1 1 1 1" },
+                RectTransform = { AnchorMin = min, AnchorMax = max }
+            }, parent);
+        }
+
+        // Cursor-enabled overlay listing every panel with toggle / dock-cycle / width / color
+        // controls, plus per-dock toggles, Reload and Close. Each control runs a mipanel.admin
+        // console command (below) that mutates the config, saves, redraws, and re-renders.
+        private void OpenAdminMenu(BasePlayer player)
+        {
+            if (player == null) return;
+            string id = player.UserIDString;
+            CuiHelper.DestroyUi(player, AdminRoot);
+
+            var c = new CuiElementContainer();
+            c.Add(new CuiPanel
+            {
+                Image = { Color = "0 0 0 0.75" },
+                RectTransform = { AnchorMin = "0 0", AnchorMax = "1 1" },
+                CursorEnabled = true
+            }, "Overlay", AdminRoot);
+
+            string win = AdminRoot + "_win";
+            c.Add(new CuiPanel
+            {
+                Image = { Color = "0.08 0.08 0.09 0.98" },
+                RectTransform = { AnchorMin = "0.12 0.10", AnchorMax = "0.88 0.92" }
+            }, AdminRoot, win);
+
+            c.Add(new CuiLabel
+            {
+                Text = { Text = L("AdminTitle", id), FontSize = 16, Align = TextAnchor.MiddleLeft, Color = "1 1 1 1" },
+                RectTransform = { AnchorMin = "0.02 0.93", AnchorMax = "0.85 0.99" }
+            }, win);
+            AdminBtn(c, win, "0.90 0.93", "0.99 0.99", "0.7 0.2 0.2 0.95", L("AdminClose", id), "mipanel.admin close");
+
+            // Panel rows, top-down.
+            var names = new List<string>(_config.Panels.Keys);
+            const float top = 0.90f, rh = 0.044f;
+            for (int i = 0; i < names.Count; i++)
+            {
+                float y1 = top - i * rh, y0 = y1 - rh + 0.006f;
+                if (y0 < 0.115f) break;   // leave room for the dock row + footer
+                string pn = names[i];
+                PanelConfig pc = _config.Panels[pn];
+                bool on = pc.Enabled;
+                c.Add(new CuiLabel { Text = { Text = pn, FontSize = 11, Align = TextAnchor.MiddleLeft, Color = "1 1 1 1" },
+                    RectTransform = { AnchorMin = Pos(0.02f, y0), AnchorMax = Pos(0.24f, y1) } }, win);
+                AdminBtn(c, win, Pos(0.24f, y0), Pos(0.33f, y1), on ? "0.2 0.6 0.2 0.9" : "0.5 0.2 0.2 0.9",
+                    on ? L("AdminOn", id) : L("AdminOff", id), "mipanel.admin toggle " + pn);
+                AdminBtn(c, win, Pos(0.335f, y0), Pos(0.37f, y1), "0.25 0.25 0.3 0.9", "<", "mipanel.admin dock " + pn + " prev");
+                c.Add(new CuiLabel { Text = { Text = pc.Dock.Replace("Dock", ""), FontSize = 9, Align = TextAnchor.MiddleCenter, Color = "0.8 0.8 0.8 1" },
+                    RectTransform = { AnchorMin = Pos(0.37f, y0), AnchorMax = Pos(0.47f, y1) } }, win);
+                AdminBtn(c, win, Pos(0.47f, y0), Pos(0.505f, y1), "0.25 0.25 0.3 0.9", ">", "mipanel.admin dock " + pn + " next");
+                AdminBtn(c, win, Pos(0.51f, y0), Pos(0.545f, y1), "0.25 0.25 0.3 0.9", "w-", "mipanel.admin width " + pn + " dec");
+                AdminBtn(c, win, Pos(0.55f, y0), Pos(0.585f, y1), "0.25 0.25 0.3 0.9", "w+", "mipanel.admin width " + pn + " inc");
+                for (int s = 0; s < AdminPalette.Length; s++)
+                {
+                    float sx0 = 0.60f + s * 0.038f, sx1 = sx0 + 0.034f;
+                    if (sx1 > 0.99f) break;
+                    AdminBtn(c, win, Pos(sx0, y0), Pos(sx1, y1), SafeColor(AdminPalette[s], "0 0 0 0.45"), "", "mipanel.admin color " + pn + " " + s);
+                }
+            }
+
+            // Dock toggles + Reload along the bottom.
+            c.Add(new CuiLabel { Text = { Text = L("AdminDocks", id), FontSize = 11, Align = TextAnchor.MiddleLeft, Color = "0.8 0.8 0.8 1" },
+                RectTransform = { AnchorMin = "0.02 0.065", AnchorMax = "0.12 0.105" } }, win);
+            var docks = new List<string>(_config.Docks.Keys);
+            for (int i = 0; i < docks.Count; i++)
+            {
+                string dn = docks[i];
+                bool on = _config.Docks[dn].Enabled;
+                float dx0 = 0.02f + i * 0.165f, dx1 = dx0 + 0.155f;
+                AdminBtn(c, win, Pos(dx0, 0.015f), Pos(dx1, 0.06f), on ? "0.2 0.6 0.2 0.9" : "0.5 0.2 0.2 0.9",
+                    dn.Replace("Dock", "") + " " + (on ? L("AdminOn", id) : L("AdminOff", id)), "mipanel.admin dockenable " + dn);
+            }
+            AdminBtn(c, win, "0.80 0.015", "0.99 0.06", "0.25 0.4 0.6 0.95", L("AdminReload", id), "mipanel.admin reload");
+
+            CuiHelper.AddUi(player, c.ToJson());
+        }
+
+        [ConsoleCommand("mipanel.admin")]
+        private void AdminConsole(ConsoleSystem.Arg arg)
+        {
+            BasePlayer player = arg?.Player();
+            if (player == null || !permission.UserHasPermission(player.UserIDString, PermAdmin)) return;
+            string action = (arg.GetString(0) ?? string.Empty).ToLowerInvariant();
+            if (action == "close") { CuiHelper.DestroyUi(player, AdminRoot); return; }
+            if (action == "reload") { DoReload(); OpenAdminMenu(player); return; }
+
+            string target = arg.GetString(1);
+            PanelConfig pc;
+            switch (action)
+            {
+                case "toggle":
+                    if (_config.Panels.TryGetValue(target, out pc)) pc.Enabled = !pc.Enabled;
+                    break;
+                case "dock":
+                    if (_config.Panels.TryGetValue(target, out pc))
+                    {
+                        var docks = new List<string>(_config.Docks.Keys);
+                        int idx = docks.IndexOf(pc.Dock); if (idx < 0) idx = 0;
+                        idx = arg.GetString(2) == "prev" ? (idx - 1 + docks.Count) % docks.Count : (idx + 1) % docks.Count;
+                        if (docks.Count > 0) pc.Dock = docks[idx];
+                    }
+                    break;
+                case "width":
+                    if (_config.Panels.TryGetValue(target, out pc))
+                        pc.Width = Mathf.Clamp(pc.Width + (arg.GetString(2) == "dec" ? -0.02f : 0.02f), 0.02f, 1f);
+                    break;
+                case "color":
+                    int ci;
+                    if (_config.Panels.TryGetValue(target, out pc) && int.TryParse(arg.GetString(2), out ci) && ci >= 0 && ci < AdminPalette.Length)
+                        pc.BackgroundColor = AdminPalette[ci];
+                    break;
+                case "dockenable":
+                    DockConfig dc;
+                    if (_config.Docks.TryGetValue(target, out dc)) dc.Enabled = !dc.Enabled;
+                    break;
+                default:
+                    return;
+            }
+            SaveConfig();
+            RebuildIndex();
+            RedrawAll();
+            OpenAdminMenu(player);
         }
 
         #endregion

@@ -3,7 +3,7 @@
 [![Standards](https://github.com/gjdunga/ModernInfoPanel/actions/workflows/standards.yml/badge.svg)](https://github.com/gjdunga/ModernInfoPanel/actions/workflows/standards.yml)
 [![Compile](https://github.com/gjdunga/ModernInfoPanel/actions/workflows/compile.yml/badge.svg)](https://github.com/gjdunga/ModernInfoPanel/actions/workflows/compile.yml)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
-![Version](https://img.shields.io/badge/version-1.5.0-informational)
+![Version](https://img.shields.io/badge/version-1.6.0-informational)
 
 A configurable corner-HUD information panel for Rust — a modern, security- and
 performance-minded rebuild of the classic InfoPanel concept. Four corner "docks"
@@ -49,7 +49,7 @@ See [INSTALL.md](INSTALL.md) for updating, permissions, and troubleshooting.
 
 | Permission | Description |
 | --- | --- |
-| `moderninfopanel.admin` | Reload the config (`mipanel reload`) and import an InfoPanel config (`mipanel import`) from chat/console/RCON. The server console and RCON are always authorized. |
+| `moderninfopanel.admin` | Open the in-game editor (`mipanel admin`), reload the config (`mipanel reload`), and import an InfoPanel config (`mipanel import`) from chat/console/RCON. The server console and RCON are always authorized. |
 | `moderninfopanel.<suffix>` | Dynamic — registered for any panel that sets a `Permission suffix`; only holders see that panel. |
 
 ## Commands
@@ -65,10 +65,12 @@ slash: `mipanel …`).
 | `mipanel` | `clock game` | Use in-game time. Player-only. |
 | `mipanel` | `clock server [offset]` | Use server time; optional hour offset `-23..23`. Player-only. |
 | `mipanel` | `timeformat [index]` | List or pick a clock format. Player-only. |
+| `mipanel` | `tz <zone\|off>` | Set your clock to a named [IANA timezone](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) (e.g. `America/Denver`), DST-correct; `tz off` reverts to the game/server clock. Player-only. |
+| `mipanel` | `admin` | **Admin** — open the in-game editor (toggle panels, reassign docks, nudge widths, recolor backgrounds, toggle docks). Player-only (needs a cursor). |
 | `mipanel` | `reload` | **Admin/server** — reload config and redraw all panels. Works from chat, console, RCON, and the server console. |
 | `mipanel` | `import [file]` | **Admin/server** — import an existing InfoPanel config (a filename or path **inside the config folder**; default `oxide/config/InfoPanel.json`) into MIP, then reload. Works from chat, console, RCON, and the server console. |
 
-> The per-player subcommands (`hide`, `show`, `clock`, `timeformat`) need a player,
+> The per-player subcommands (`hide`, `show`, `clock`, `timeformat`, `tz`, `admin`) need a player,
 > so from the server console/RCON only `reload` and `import` apply; the rest reply
 > with a hint to run them in-game.
 
@@ -122,6 +124,44 @@ Built-in panel names: `Clock`, `Messages`, `Balance`, `Points`, `Coordinates`,
 > values for self-hosted images if you prefer not to depend on a third party.
 
 Edit the file and run `mipanel reload` (or `o.reload ModernInfoPanel`) to apply.
+
+### Admin menu
+
+Holders of `moderninfopanel.admin` can run **`/mipanel admin`** in-game to open a
+cursor-driven editor — no ImageLibrary or other dependency required. For each panel a row
+exposes:
+
+- an **`ON`/`OFF`** toggle (panel `Enabled`),
+- **`<`/`>`** to cycle the panel through the four docks (`Dock`),
+- **`w-`/`w+`** to nudge its `Width within dock` by ±0.02 (clamped to `0.02..1`),
+- a strip of **preset background swatches** that set the panel's `Background color`.
+
+A **Docks** block toggles each dock's `Enabled` flag, and the footer has **Reload** (re-read
+the config from disk) and **Close**. Every change is written straight to
+`oxide/config/ModernInfoPanel.json`, the index is rebuilt, and all panels redraw immediately —
+so the editor and a hand-edited config never drift. The editor needs a cursor, so it is
+player-only (the server console/RCON can't open it).
+
+### Timezones
+
+Players can pin their clock to a named **IANA timezone**, DST-correct, with
+**`/mipanel tz <zone>`** — e.g. `/mipanel tz America/Denver` or `/mipanel tz Europe/Berlin`.
+This is per-player and persists across reconnects. `/mipanel tz off` clears it and reverts to
+the server's `clock game`/`clock server [offset]` behaviour. The clock falls back gracefully
+(never throws) if a stored zone later can't be resolved.
+
+> **Host note:** zone ids are resolved by the **host OS** timezone database. Linux and most
+> mono-based Rust servers ship the full IANA set out of the box. On Windows hosts without ICU,
+> some IANA ids may not resolve — the command replies with an "unknown timezone" hint and the
+> clock keeps using the existing mode.
+
+### Theming
+
+MIP is themeable without touching code — recolor docks/panels, swap icon `Url`s for your own
+art, and tune the Status-glow palette. See **[THEMING.md](THEMING.md)** for the full guide,
+copy-paste color presets (Dark / Neon / Minimal), and an editable layered template at
+[`assets/theme/panel-template.svg`](assets/theme/panel-template.svg) (edit → export PNG →
+self-host → point a panel's `Image → Url` at it).
 
 ### Developer API
 
