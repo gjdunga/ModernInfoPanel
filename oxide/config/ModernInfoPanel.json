@@ -1,5 +1,5 @@
 {
-  "Config version": "2.0.0",
+  "Config version": "2.0.1",
   "General": {
     "Coordinate format (0 = X/Z, 1 = grid, 2 = both)": 2,
     "Compass shows text direction (false = degrees)": true,

@@ -35,7 +35,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Modern Info Panel", "gjdunga", "2.0.0")]
+    [Info("Modern Info Panel", "gjdunga", "2.0.1")]
     [Description("Configurable corner HUD panels: clock, announcements, balance, points, coordinates, compass, player counts and live event indicators. Oxide + Carbon compatible.")]
     public class ModernInfoPanel : RustPlugin
     {
@@ -1039,12 +1039,18 @@ namespace Oxide.Plugins
             view.Color.Clear();
 
             var c = new CuiElementContainer();
-            c.Add(new CuiPanel
+            // Root is a graphic-less, full-screen container: with no Image component it
+            // is NOT a raycast target, so the HUD never swallows mouse input the game
+            // needs (notably the map's scroll-to-zoom and drag). Docks parent to it by name.
+            c.Add(new CuiElement
             {
-                Image = { Color = "0 0 0 0" },
-                RectTransform = { AnchorMin = "0 0", AnchorMax = "1 1" },
-                CursorEnabled = false
-            }, "Hud", Root);
+                Name = Root,
+                Parent = "Hud",
+                Components =
+                {
+                    new CuiRectTransformComponent { AnchorMin = "0 0", AnchorMax = "1 1" }
+                }
+            });
 
             foreach (var dockPair in _config.Docks)
             {
