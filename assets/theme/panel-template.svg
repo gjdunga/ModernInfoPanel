@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Modern Info Panel — themeable icon/panel template.
+
+  Three named, editable layers (groups):
+    #background  — the panel backdrop / pill shape
+    #icon        — your glyph; replace this group with your own art
+    #accent      — optional highlight stroke / status dot
+
+  Workflow: edit the groups in Inkscape / Illustrator / Figma, export to a
+  256x256 PNG, self-host it, then point a panel's  Image -> Url  at that PNG.
+  Keep the canvas square and art centered so it aligns with the other HUD icons.
+  Colors here mirror MIP's "R G B A" config strings (0..1) as #RRGGBB + opacity.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"
+     viewBox="0 0 256 256" version="1.1">
+
+  <!-- ====================================================================
+       background — panel backdrop. Default: 70%-opaque black rounded pill.
+       Maps to a panel's  Background color (R G B A) = "0 0 0 0.70".
+       ==================================================================== -->
+  <g id="background" inkscape:label="background">
+    <rect x="8" y="8" width="240" height="240" rx="40" ry="40"
+          fill="#000000" fill-opacity="0.70"/>
+  </g>
+
+  <!-- ====================================================================
+       icon — your glyph. Replace this whole group with your own art.
+       Default placeholder: a simple "i" info mark, white.
+       ==================================================================== -->
+  <g id="icon" inkscape:label="icon" fill="#ffffff" fill-opacity="1.0">
+    <circle cx="128" cy="74" r="14"/>
+    <rect x="114" y="104" width="28" height="84" rx="10" ry="10"/>
+  </g>
+
+  <!-- ====================================================================
+       accent — optional highlight / status dot. Default: thin accent ring.
+       Tint this to match a Status-glow color, e.g. green "#00ff00".
+       ==================================================================== -->
+  <g id="accent" inkscape:label="accent">
+    <rect x="8" y="8" width="240" height="240" rx="40" ry="40"
+          fill="none" stroke="#e2a44a" stroke-opacity="0.85" stroke-width="4"/>
+  </g>
+
+</svg>

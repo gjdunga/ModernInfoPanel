@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Dates are UTC.
 
+## [1.6.0] - 2026-06-09
+
+### Added
+- **In-game admin editor** — `/mipanel admin` (permission `moderninfopanel.admin`) opens a
+  cursor UI to toggle panels and docks on/off, reassign a panel's dock, nudge its width, and
+  set its background color from a swatch palette; changes save and redraw live. No ImageLibrary.
+- **Per-player timezones** — `/mipanel tz <IANA zone>` (e.g. `America/Denver`) sets a
+  DST-correct per-player clock; `/mipanel tz off` reverts. Resolves on hosts with an IANA
+  timezone database (Linux/mono Rust servers).
+- **Theming kit** — `THEMING.md` plus a layered, editable `assets/theme/panel-template.svg`
+  for building custom panel art and color themes.
+
 ## [1.5.0] - 2026-06-09
 
 ### Added
