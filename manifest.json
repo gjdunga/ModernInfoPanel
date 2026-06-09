@@ -1,7 +1,7 @@
 {
   "name": "ModernInfoPanel",
   "title": "Modern Info Panel",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "author": "Gabriel Dungan (DunganSoft Technologies)",
   "author_handle": "gjdunga",
   "description": "Configurable corner HUD panels for Rust: clock, rotating announcements, balance, points, coordinates, compass, online/sleeper counts and live event indicators (airdrop, helicopter, chinook, cargo ship, bradley, radiation). Oxide and Carbon compatible, with a reflection-free API for custom panels.",

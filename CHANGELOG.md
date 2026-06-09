@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Dates are UTC.
 
+## [2.0.1] - 2026-06-09
+
+### Fixed
+- **HUD no longer blocks the in-game map (and other mouse input).** The full-screen
+  root container was a transparent but raycast-targetable panel, so it swallowed
+  mouse events the game needs — most visibly the map's scroll-to-zoom and drag, which
+  appeared "stuck" while panels were shown. The root is now a graphic-less container
+  (no image = no raycast target); the map works normally with panels visible.
+
 ## [2.0.0] - 2026-06-09
 
 ### Changed
