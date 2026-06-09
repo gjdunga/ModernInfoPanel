@@ -46,6 +46,17 @@ Configurable corner HUD panels for Rust: clock, rotating announcements, balance,
 2. Upload it to `oxide/plugins/ModernInfoPanel.cs` on your server.
 3. The plugin compiles and loads automatically; a default config is written to `oxide/config/ModernInfoPanel.json` on first load.
 
+## Verifying the download
+
+This plugin is **code-signed**. Every release attaches a detached OpenPGP signature (`ModernInfoPanel.cs.asc`) and the public key (`gjdunga.asc`):
+
+```bash
+gpg --import gjdunga.asc   # fingerprint EAC0A2AE65CC6C9762DD6AF06877843761D5C6E6
+gpg --verify ModernInfoPanel.cs.asc ModernInfoPanel.cs
+```
+
+Expect: `Good signature from "Gabriel Dungan <gjdunga@gmail.com>"`.
+
 ## What's new in 1.6.0
 
 ### Added
