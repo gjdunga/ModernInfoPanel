@@ -21,3 +21,25 @@ run denial-of-service tests against servers you do not own.
 
 The latest released version receives fixes. Older versions are not maintained;
 please update before reporting.
+
+## Verifying signatures
+
+Releases, tags, and commits may be signed with the maintainer's OpenPGP key. The
+public key is committed at [`keys/gabriel-dungan.asc`](keys/gabriel-dungan.asc):
+
+- **Owner:** Gabriel Dungan `<gjdunga@gmail.com>`
+- **Primary key fingerprint:** `EAC0 A2AE 65CC 6C97 62DD 6AF0 6877 8437 61D5 C6E6`
+- **Signing subkey:** `C89A 1C77 FC8F 426D 62A2 377F 2036 D16F D755 671B`
+
+Import it and verify, e.g.:
+
+```bash
+gpg --import keys/gabriel-dungan.asc
+git verify-tag  vX.Y.Z      # a signed release tag
+git verify-commit HEAD      # a signed commit
+gpg --verify ModernInfoPanel.cs.asc ModernInfoPanel.cs   # a detached signature
+```
+
+A good signature from the fingerprint above confirms the artifact is from the
+maintainer. This file is the **public** key only; it cannot create signatures.
+
