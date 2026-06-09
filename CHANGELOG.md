@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Dates are UTC.
 
+## [1.5.0] - 2026-06-09
+
+### Added
+- **Per-player status glow** — a new built-in `Status` panel (disabled by default) whose icon tints
+  to reflect the *viewing player's* own live state: hostile-in-safezone (red), being raided (yellow),
+  in a safe zone (green), AFK (blue), or building-authed (white). The state→color mapping, the AFK
+  threshold (`AfkSeconds`), the raid window (`RaidWindowSeconds`), and the evaluation `Priority` are
+  all configurable in the panel's `Settings`. Raid state is driven by explosive damage to a player's
+  building blocks/doors/tool cupboards (no plugin dependency).
+- **Progress-bar panel element** — panels can carry a `Progress` element (track + fill); the fill
+  width tracks a 0–1 value. Designed for modded events and timers to drive live.
+- **Developer API additions** — `SetPanelProgress(panel, value[, playerId])` updates a progress
+  bar's fill in place, and `SetPanelColor(panel, color[, playerId])` flashes a panel's image glow in
+  place. Both act on third-party (`PanelRegister`) panels only, consistent with the existing API.
+
 ## [1.4.0] - 2026-06-08
 
 ### Added

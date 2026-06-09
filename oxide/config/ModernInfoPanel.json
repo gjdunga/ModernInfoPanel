@@ -1,5 +1,5 @@
 {
-  "Config version": "1.4.0",
+  "Config version": "1.5.0",
   "General": {
     "Coordinate format (0 = X/Z, 1 = grid, 2 = both)": 2,
     "Compass shows text direction (false = degrees)": true,
@@ -402,6 +402,33 @@
         "Alignment (TextAnchor)": "MiddleCenter",
         "Static content (text/3rd-party panels)": "",
         "Offset from left within panel (0-1)": 0.0
+      }
+    },
+    "Status": {
+      "Enabled": false,
+      "Dock": "BottomRightDock",
+      "Order": 4,
+      "Width within dock (0-1)": 0.07,
+      "Align within dock (Left | Right)": "Left",
+      "Background color (R G B A)": "0 0 0 0.45",
+      "Refresh interval seconds (0 = static/event-driven)": 1,
+      "Image": {
+        "Enabled": true,
+        "Url": "https://i.imgur.com/nUlXLbO.png",
+        "Color (R G B A)": "1 1 1 0.15",
+        "Width within panel (0-1)": 0.85,
+        "Height within panel (0-1)": 0.85
+      },
+      "Settings": {
+        "SafeColor": "0 1 0 1",
+        "SafeHostileColor": "1 0 0 1",
+        "RaidColor": "1 1 0 1",
+        "AfkColor": "0.3 0.5 1 1",
+        "BuildingPrivColor": "1 1 1 1",
+        "InactiveColor": "1 1 1 0.15",
+        "AfkSeconds": "300",
+        "RaidWindowSeconds": "30",
+        "Priority": "SafeHostile,Raid,SafeZone,AFK,BuildingPriv"
       }
     }
   },

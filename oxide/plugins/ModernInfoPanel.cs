@@ -35,7 +35,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Modern Info Panel", "gjdunga", "1.4.0")]
+    [Info("Modern Info Panel", "gjdunga", "1.5.0")]
     [Description("Configurable corner HUD panels: clock, announcements, balance, points, coordinates, compass, player counts and live event indicators. Oxide + Carbon compatible.")]
     public class ModernInfoPanel : RustPlugin
     {
@@ -72,6 +72,7 @@ namespace Oxide.Plugins
         private const string PServerFps = "ServerFPS";
         private const string PPing = "Ping";
         private const string PWipe = "WipeCountdown";
+        private const string PStatus = "Status";
 
         // Third-party API limits.
         private const int MaxPanelsPerPlugin = 25;
@@ -114,6 +115,10 @@ namespace Oxide.Plugins
         private readonly Dictionary<string, HashSet<BaseEntity>> _eventEntities = new Dictionary<string, HashSet<BaseEntity>>();
         private bool _radiationOn;
 
+        // Per-owner "being raided" markers for the Status glow. Value = Time.realtimeSinceStartup
+        // up to which the owner's panel glows the raid color (set by OnEntityTakeDamage).
+        private readonly Dictionary<ulong, float> _raidUntil = new Dictionary<ulong, float>();
+
         // Maps a spawned entity type to the event panel it drives.
         private static readonly Dictionary<Type, string> EventTypes = new Dictionary<Type, string>();
 
@@ -126,6 +131,8 @@ namespace Oxide.Plugins
         // Static/third-party content overrides: panel -> text/color (global and per-player).
         private readonly Dictionary<string, string> _customText = new Dictionary<string, string>();
         private readonly Dictionary<string, string> _customColor = new Dictionary<string, string>();
+        // Third-party progress-bar fill levels (0..1), panel -> value, applied to new draws.
+        private readonly Dictionary<string, float> _customProgress = new Dictionary<string, float>();
 
         private readonly HashSet<string> _registeredPerms = new HashSet<string>();
 
@@ -143,6 +150,12 @@ namespace Oxide.Plugins
             public bool Visible;                         // currently drawn on the client
             public readonly Dictionary<string, string> Text = new Dictionary<string, string>();
             public readonly Dictionary<string, string> Color = new Dictionary<string, string>();
+            public readonly Dictionary<string, float> Progress = new Dictionary<string, float>();
+
+            // AFK detection: last sampled position/yaw and how many ticks (~seconds) unchanged.
+            public Vector3 LastPos;
+            public float LastYaw;
+            public int IdleTicks;
         }
 
         #endregion
@@ -152,7 +165,7 @@ namespace Oxide.Plugins
         private sealed class Configuration
         {
             [JsonProperty("Config version")]
-            public string Version = "1.4.0";
+            public string Version = "1.5.0";
 
             [JsonProperty("General")]
             public GeneralOptions General = new GeneralOptions();
@@ -230,6 +243,7 @@ namespace Oxide.Plugins
             public string Command;
             [JsonProperty("Image", NullValueHandling = NullValueHandling.Ignore)] public ImageElement Image;
             [JsonProperty("Text", NullValueHandling = NullValueHandling.Ignore)] public TextElement Text;
+            [JsonProperty("Progress", NullValueHandling = NullValueHandling.Ignore)] public ProgressElement Progress;
             [JsonProperty("Settings", NullValueHandling = NullValueHandling.Ignore)]
             public Dictionary<string, string> Settings;
 
@@ -260,6 +274,18 @@ namespace Oxide.Plugins
             [JsonProperty("Alignment (TextAnchor)")] public string Align = "MiddleCenter";
             [JsonProperty("Static content (text/3rd-party panels)")] public string Content = "";
             [JsonProperty("Offset from left within panel (0-1)")] public float Left;
+        }
+
+        // Optional horizontal progress bar. The fill width tracks Value (0..1); other plugins
+        // drive it live via the SetPanelProgress API. The bar is centered vertically at Height.
+        private sealed class ProgressElement
+        {
+            [JsonProperty("Enabled")] public bool Enabled = true;
+            [JsonProperty("Fill color (R G B A)")] public string Color = "0.2 0.8 0.2 1";
+            [JsonProperty("Track color (R G B A)")] public string BackgroundColor = "0 0 0 0.5";
+            [JsonProperty("Height within panel (0-1)")] public float Height = 0.5f;
+            [JsonProperty("Initial value (0-1)")] public float Value;
+            [JsonProperty("Fill from right edge")] public bool RightToLeft;
         }
 
         protected override void LoadDefaultConfig()
@@ -392,6 +418,27 @@ namespace Oxide.Plugins
                     {
                         Dock = "TopRightDock", Order = 2, Width = 0.5f, RefreshInterval = 60,
                         Text = new TextElement { FontSize = 12 }
+                    }),
+                    // Per-player status glow: an icon that tints to reflect the viewer's own live
+                    // state. Disabled by default; the placeholder Url should be swapped for a themed
+                    // indicator icon. State->color and thresholds live in Settings.
+                    [PStatus] = Disabled(new PanelConfig
+                    {
+                        Dock = "BottomRightDock", Order = 4, Width = 0.07f, RefreshInterval = 1,
+                        BackgroundColor = "0 0 0 0.45",
+                        Image = new ImageElement { Url = "https://i.imgur.com/nUlXLbO.png", Color = "1 1 1 0.15", Width = 0.85f, Height = 0.85f },
+                        Settings = new Dictionary<string, string>
+                        {
+                            ["SafeColor"] = "0 1 0 1",
+                            ["SafeHostileColor"] = "1 0 0 1",
+                            ["RaidColor"] = "1 1 0 1",
+                            ["AfkColor"] = "0.3 0.5 1 1",
+                            ["BuildingPrivColor"] = "1 1 1 1",
+                            ["InactiveColor"] = "1 1 1 0.15",
+                            ["AfkSeconds"] = "300",
+                            ["RaidWindowSeconds"] = "30",
+                            ["Priority"] = "SafeHostile,Raid,SafeZone,AFK,BuildingPriv"
+                        }
                     })
                 }
             };
@@ -460,7 +507,7 @@ namespace Oxide.Plugins
         {
             PClock, PMessages, PBalance, PPoints, PCoordinates, PCompass, POnline, PSleepers,
             PAirdrop, PHeli, PChinook, PCargo, PBradley, PRadiation,
-            PServerFps, PPing, PWipe
+            PServerFps, PPing, PWipe, PStatus
         };
 
         // Read an InfoPanel config from `path` and overlay everything we recognise onto `cfg`
@@ -768,6 +815,20 @@ namespace Oxide.Plugins
             if (ev != null && _eventEntities.ContainsKey(ev)) _eventEntities[ev].Remove(ent);
         }
 
+        // Marks a structure's owner as "being raided" when their building takes explosive damage,
+        // driving the per-player Status glow's raid color. Read-only: never alters the damage
+        // (returns null), and does nothing unless the Status panel is enabled.
+        private object OnEntityTakeDamage(BaseCombatEntity entity, HitInfo info)
+        {
+            if (!_ready || entity == null || info == null || !PanelEnabled(PStatus)) return null;
+            if (!(entity is BuildingBlock || entity is Door || entity is BuildingPrivlidge)) return null;
+            if (!info.damageTypes.Has(Rust.DamageType.Explosion)) return null;
+            ulong owner = entity.OwnerID;
+            if (owner != 0)
+                _raidUntil[owner] = UnityEngine.Time.realtimeSinceStartup + RaidWindowSeconds();
+            return null;
+        }
+
         // Fires on a map wipe (a new world save) — NOT on a blueprint-only wipe. May fire
         // before our data is loaded; OnServerInitialized reconciles that case.
         private void OnNewSave(string filename)
@@ -795,6 +856,7 @@ namespace Oxide.Plugins
                 _thirdParty.Remove(panel);
                 _customText.Remove(panel);
                 _customColor.Remove(panel);
+                _customProgress.Remove(panel);
             }
 
             _pluginPanels.Remove(plugin.Title);
@@ -937,6 +999,8 @@ namespace Oxide.Plugins
         private static string NText(string s) => "MIP_text_" + s;
         private static string NImage(string s) => "MIP_image_" + s;
         private static string NButton(string s) => "MIP_btn_" + s;
+        private static string NProgress(string s) => "MIP_prog_" + s;
+        private static string NProgressFill(string s) => "MIP_progf_" + s;
 
         private void RedrawAll()
         {
@@ -1039,6 +1103,21 @@ namespace Oxide.Plugins
                 });
             }
 
+            if (cfg.Progress != null && cfg.Progress.Enabled)
+            {
+                float value = ProgressValue(view, e.Name, cfg.Progress);
+                view.Progress[e.Name] = value;
+                float ph = Mathf.Clamp(cfg.Progress.Height, 0.01f, 1f);
+                float py0 = (1f - ph) * 0.5f;
+                string track = NProgress(e.Name);
+                c.Add(new CuiPanel
+                {
+                    Image = { Color = SafeColor(cfg.Progress.BackgroundColor, "0 0 0 0.5"), FadeIn = fade },
+                    RectTransform = { AnchorMin = Pos(0f, py0), AnchorMax = Pos(1f, py0 + ph) }
+                }, parent, track);
+                AddProgressFill(c, e.Name, cfg.Progress, value, fade);
+            }
+
             if (cfg.Text != null && cfg.Text.Enabled)
             {
                 string text = TextValue(view, e);
@@ -1125,6 +1204,45 @@ namespace Oxide.Plugins
             CuiHelper.AddUi(view.Player, c.ToJson());
         }
 
+        // Current fill (0..1) for a progress panel: a live API override if set, else its configured value.
+        private float ProgressValue(PlayerView view, string panel, ProgressElement prog)
+        {
+            float v;
+            if (_customProgress.TryGetValue(panel, out v)) return Mathf.Clamp01(v);
+            return Mathf.Clamp01(prog.Value);
+        }
+
+        // Adds the fill rectangle inside an already-present track panel; width tracks `value`.
+        private void AddProgressFill(CuiElementContainer c, string panel, ProgressElement prog, float value, float fade)
+        {
+            float f = Mathf.Clamp01(value);
+            string min, max;
+            if (prog.RightToLeft) { min = Pos(1f - f, 0f); max = Pos(1f, 1f); }
+            else { min = Pos(0f, 0f); max = Pos(f, 1f); }
+            c.Add(new CuiPanel
+            {
+                Image = { Color = SafeColor(prog.Color, "0.2 0.8 0.2 1"), FadeIn = fade },
+                RectTransform = { AnchorMin = min, AnchorMax = max }
+            }, NProgress(panel), NProgressFill(panel));
+        }
+
+        // Lightweight in-place fill update (no track/text flicker), mirroring PushText/PushColor.
+        private void PushProgress(PlayerView view, string panel, float value)
+        {
+            value = Mathf.Clamp01(value);
+            float prev;
+            if (view.Progress.TryGetValue(panel, out prev) && Mathf.Approximately(prev, value)) return;
+            view.Progress[panel] = value;
+            if (!view.Visible || !Ready(view) || !IsVisibleTo(view, panel)) return;
+
+            PanelConfig cfg;
+            if (!_config.Panels.TryGetValue(panel, out cfg) || cfg.Progress == null || !cfg.Progress.Enabled) return;
+            CuiHelper.DestroyUi(view.Player, NProgressFill(panel));
+            var c = new CuiElementContainer();
+            AddProgressFill(c, panel, cfg.Progress, value, 0f);
+            CuiHelper.AddUi(view.Player, c.ToJson());
+        }
+
         private Vector4 DockRect(DockConfig d)
         {
             float w = Mathf.Clamp(d.Width, 0.01f, 1f);
@@ -1190,10 +1308,17 @@ namespace Oxide.Plugins
 
             string fpsText = dueFps ? ServerFpsText() : null;
             string wipeText = dueWipe ? WipeText() : null;
+            bool statusOn = PanelEnabled(PStatus);
 
             foreach (PlayerView view in _views.Values)
             {
                 if (!Ready(view) || !view.Visible) continue;
+
+                if (statusOn)
+                {
+                    UpdateIdle(view);
+                    PushColor(view, PStatus, StatusColor(view));
+                }
 
                 if (onlineText != null) PushText(view, POnline, onlineText);
                 if (sleepersText != null) PushText(view, PSleepers, sleepersText);
@@ -1211,6 +1336,18 @@ namespace Oxide.Plugins
 
             // Debounced persistence: flush at most ~once a minute when dirty.
             if (_dataDirty && _tick % 60 == 0) FlushData();
+
+            // Drop expired raid markers so the map can't grow without bound over a wipe.
+            if (statusOn && _raidUntil.Count > 0 && _tick % 60 == 0) PruneRaidMarkers();
+        }
+
+        private void PruneRaidMarkers()
+        {
+            float now = UnityEngine.Time.realtimeSinceStartup;
+            List<ulong> drop = null;
+            foreach (var kv in _raidUntil)
+                if (kv.Value <= now) (drop ?? (drop = new List<ulong>())).Add(kv.Key);
+            if (drop != null) foreach (ulong k in drop) _raidUntil.Remove(k);
         }
 
         private bool Due(string panel)
@@ -1219,6 +1356,23 @@ namespace Oxide.Plugins
             if (!_config.Panels.TryGetValue(panel, out cfg) || cfg == null || !cfg.Enabled) return false;
             int interval = cfg.RefreshInterval;
             return interval > 0 && _tick % interval == 0;
+        }
+
+        // Counts consecutive ticks the player hasn't moved or turned, for the AFK status state.
+        private static void UpdateIdle(PlayerView view)
+        {
+            Vector3 pos = view.Player.transform.position;
+            float yaw = view.Player.viewAngles.y;
+            if ((pos - view.LastPos).sqrMagnitude < 0.04f && Mathf.Abs(yaw - view.LastYaw) < 1f)
+            {
+                view.IdleTicks++;
+            }
+            else
+            {
+                view.IdleTicks = 0;
+                view.LastPos = pos;
+                view.LastYaw = yaw;
+            }
         }
 
         private string TextValue(PlayerView view, PanelEntry e)
@@ -1574,6 +1728,7 @@ namespace Oxide.Plugins
         private string ImageColorFor(PlayerView view, string panel)
         {
             string color;
+            if (panel == PStatus) return StatusColor(view);
             if (_eventColor.TryGetValue(panel, out color)) return color;
             if (_customColor.TryGetValue(panel, out color)) return color;
             PanelConfig cfg;
@@ -1591,6 +1746,65 @@ namespace Oxide.Plugins
         {
             PanelConfig cfg;
             return _config.Panels.TryGetValue(ev, out cfg) ? cfg.Get("InactiveColor", "1 1 1 0.15") : "1 1 1 0.15";
+        }
+
+        // Window (seconds) an owner's Status panel glows the raid color after explosive damage.
+        private float RaidWindowSeconds()
+        {
+            PanelConfig cfg;
+            float s;
+            if (_config.Panels.TryGetValue(PStatus, out cfg)
+                && float.TryParse(cfg.Get("RaidWindowSeconds", "30"), NumberStyles.Float, Inv, out s) && s > 0f)
+                return s;
+            return 30f;
+        }
+
+        // The per-viewer Status glow color: walks the configured Priority list and returns the first
+        // matching state's color (else InactiveColor). Cheap per-state checks; called once per tick.
+        private string StatusColor(PlayerView view)
+        {
+            PanelConfig cfg;
+            if (!_config.Panels.TryGetValue(PStatus, out cfg)) return "1 1 1 0.15";
+            BasePlayer p = view.Player;
+            string inactive = cfg.Get("InactiveColor", "1 1 1 0.15");
+            if (p == null) return inactive;
+
+            string priority = cfg.Get("Priority", "SafeHostile,Raid,SafeZone,AFK,BuildingPriv");
+            foreach (string raw in priority.Split(','))
+            {
+                string state = raw.Trim();
+                if (state.Length == 0) continue;
+                if (state.Equals("SafeHostile", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (p.InSafeZone() && p.IsHostile()) return cfg.Get("SafeHostileColor", "1 0 0 1");
+                }
+                else if (state.Equals("Raid", StringComparison.OrdinalIgnoreCase))
+                {
+                    float until;
+                    if (_raidUntil.TryGetValue(view.Id, out until) && until > UnityEngine.Time.realtimeSinceStartup)
+                        return cfg.Get("RaidColor", "1 1 0 1");
+                }
+                else if (state.Equals("SafeZone", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (p.InSafeZone()) return cfg.Get("SafeColor", "0 1 0 1");
+                }
+                else if (state.Equals("AFK", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (view.IdleTicks >= AfkTicks(cfg)) return cfg.Get("AfkColor", "0.3 0.5 1 1");
+                }
+                else if (state.Equals("BuildingPriv", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (p.IsBuildingAuthed()) return cfg.Get("BuildingPrivColor", "1 1 1 1");
+                }
+            }
+            return inactive;
+        }
+
+        // AFK threshold expressed in ticks (OnTick runs once per second, so ticks ~= seconds).
+        private static int AfkTicks(PanelConfig statusCfg)
+        {
+            int s;
+            return int.TryParse(statusCfg.Get("AfkSeconds", "300"), out s) && s > 0 ? s : 300;
         }
 
         #endregion
@@ -1898,6 +2112,7 @@ namespace Oxide.Plugins
             _thirdParty.Remove(panelName);
             _customText.Remove(panelName);
             _customColor.Remove(panelName);
+            _customProgress.Remove(panelName);
             RebuildIndex();
             RedrawAll();
         }
@@ -1937,6 +2152,44 @@ namespace Oxide.Plugins
             if (!string.IsNullOrEmpty(url)) cfg.Image.Url = url;
             if (!string.IsNullOrEmpty(color)) _customColor[panelName] = SafeColor(color, "1 1 1 1");
             if (playerId != null) RefreshPlayer(playerId); else RedrawAll();
+            return true;
+        }
+
+        private bool SetPanelProgress(string panelName, object value) => SetPanelProgressImpl(panelName, value, null);
+        private bool SetPanelProgress(string panelName, object value, string playerId) => SetPanelProgressImpl(panelName, value, playerId);
+
+        private bool SetPanelProgressImpl(string panelName, object value, string playerId)
+        {
+            // Third-party panels only, mirroring SetPanelText/SetPanelImage.
+            if (BuiltInPanels.Contains(panelName) || !_config.Panels.ContainsKey(panelName)) return false;
+            float v = Mathf.Clamp01((float)ToDouble(value));
+            _customProgress[panelName] = v;
+            if (playerId != null)
+            {
+                PlayerView pv;
+                if (_views.TryGetValue(playerId, out pv)) PushProgress(pv, panelName, v);
+                return true;
+            }
+            foreach (PlayerView view in _views.Values) PushProgress(view, panelName, v);
+            return true;
+        }
+
+        private bool SetPanelColor(string panelName, string color) => SetPanelColorImpl(panelName, color, null);
+        private bool SetPanelColor(string panelName, string color, string playerId) => SetPanelColorImpl(panelName, color, playerId);
+
+        // In-place image-glow update for third-party panels (e.g. flashing a modded-event icon).
+        private bool SetPanelColorImpl(string panelName, string color, string playerId)
+        {
+            if (BuiltInPanels.Contains(panelName) || !_config.Panels.ContainsKey(panelName)) return false;
+            color = SafeColor(color, "1 1 1 1");
+            _customColor[panelName] = color;
+            if (playerId != null)
+            {
+                PlayerView pv;
+                if (_views.TryGetValue(playerId, out pv)) PushColor(pv, panelName, color);
+                return true;
+            }
+            foreach (PlayerView view in _views.Values) PushColor(view, panelName, color);
             return true;
         }
 
