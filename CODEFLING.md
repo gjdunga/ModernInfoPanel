@@ -4,8 +4,10 @@
 > from `manifest.json` + `CHANGELOG.md`. Paste into Codefling's editor, then add
 > the screenshots and confirm the price before publishing. Regenerate on each release.
 
+![Modern Info Panel](assets/codefling/cover.png)
+
 - **Title:** Modern Info Panel
-- **Version:** 1.6.0
+- **Version:** 2.0.0
 - **Price:** Free
 - **Tags:** ui, hud, gui, info, panel, clock, compass, events, announcements, oxide, carbon
 - **Compatibility:** Oxide **2.0.7022+** (verified 2.0.7423) · also supports **Carbon**
@@ -57,17 +59,14 @@ gpg --verify ModernInfoPanel.cs.asc ModernInfoPanel.cs
 
 Expect: `Good signature from "Gabriel Dungan <gjdunga@gmail.com>"`.
 
-## What's new in 1.6.0
+## What's new in 2.0.0
 
-### Added
-- **In-game admin editor** — `/mipanel admin` (permission `moderninfopanel.admin`) opens a
-  cursor UI to toggle panels and docks on/off, reassign a panel's dock, nudge its width, and
-  set its background color from a swatch palette; changes save and redraw live. No ImageLibrary.
-- **Per-player timezones** — `/mipanel tz <IANA zone>` (e.g. `America/Denver`) sets a
-  DST-correct per-player clock; `/mipanel tz off` reverts. Resolves on hosts with an IANA
-  timezone database (Linux/mono Rust servers).
-- **Theming kit** — `THEMING.md` plus a layered, editable `assets/theme/panel-template.svg`
-  for building custom panel art and color themes.
+### Changed
+- Version aligned to a whole-number release (1.6.0 -> 2.0.0). No functional changes.
+
+### Security
+- Release is code-signed: a detached OpenPGP signature (`ModernInfoPanel.cs.asc`) and the public
+  key (`gjdunga.asc`) are attached and verifiable.
 
 ## Links
 
