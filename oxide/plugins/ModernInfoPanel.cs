@@ -35,7 +35,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Modern Info Panel", "gjdunga", "2.0.1")]
+    [Info("Modern Info Panel", "gjdunga", "2.1.0")]
     [Description("Configurable corner HUD panels: clock, announcements, balance, points, coordinates, compass, player counts and live event indicators. Oxide + Carbon compatible.")]
     public class ModernInfoPanel : RustPlugin
     {
@@ -730,6 +730,40 @@ namespace Oxide.Plugins
                 ["AdminClose"] = "Close",
                 ["AdminOpened"] = "Opened the admin editor.",
                 ["PlayersLabel"] = "{0} / {1}",
+
+                // Paged, drill-down help system: index/topic UI, one-line summaries, and bodies.
+                ["HelpIndexTitle"] = "<color=#e2a44a>Modern Info Panel</color> — commands",
+                ["HelpTopicHeader"] = "<color=#e2a44a>/mipanel {0}</color>",
+                ["HelpMore"] = "<color=#808080>More →</color> {0}",
+                ["HelpHintTopic"] = "<color=#808080>Details:</color> /mipanel help <topic>",
+                ["HelpHintBack"] = "<color=#808080>Back:</color> /mipanel help",
+                ["HelpUnknownTopic"] = "No help topic '<color=#e2a44a>{0}</color>'. Showing the command list:",
+                ["HelpSumShow"] = "show your panel",
+                ["HelpSumHide"] = "hide your panel",
+                ["HelpSumClock"] = "choose the clock source",
+                ["HelpSumTimeformat"] = "choose the clock format",
+                ["HelpSumTz"] = "set your clock timezone",
+                ["HelpSumPanels"] = "what each panel shows",
+                ["HelpSumPlaceholders"] = "live tokens you can use",
+                ["HelpSumStatus"] = "the status-glow indicator",
+                ["HelpSumTheming"] = "recolor & re-skin the HUD",
+                ["HelpSumHelp"] = "this help; drill into a topic",
+                ["HelpSumAdmin"] = "[admin] open the in-game editor",
+                ["HelpSumReload"] = "[admin] reload config & redraw",
+                ["HelpSumImport"] = "[admin] import an InfoPanel config",
+                ["HelpBodyShow"] = "Shows your info panels again after hiding them.\nUsage: /mipanel show\nYour choice is saved across reconnects.\nSee also: hide",
+                ["HelpBodyHide"] = "Hides all your info panels (nothing is deleted).\nUsage: /mipanel hide\n/mipanel show brings them back.\nSee also: show",
+                ["HelpBodyClock"] = "Sets where your clock reads time from.\n/mipanel clock game — in-game time\n/mipanel clock server [offset] — server time, optional hour offset (-23..23)\nExample: /mipanel clock server -2\nSee also: timeformat, tz",
+                ["HelpBodyTimeformat"] = "Changes how the clock is written.\n/mipanel timeformat — list available formats\n/mipanel timeformat <index> — pick one\nExample: /mipanel timeformat 2\nSee also: clock",
+                ["HelpBodyTz"] = "Pins your clock to a named timezone (DST-correct).\n/mipanel tz <zone> — e.g. America/Denver\n/mipanel tz off — back to the server clock\nUse IANA names in Region/City form.\nSee also: clock",
+                ["HelpBodyPanels"] = "Built-in panels: Clock, Messages, Balance, Points,\nCoordinates, Compass, OnlinePlayers, Sleepers,\nevent icons (Airdrop/Helicopter/Chinook/Cargo/Bradley/Radiation),\nServerFPS, Ping, WipeCountdown, Status.\nAn admin arranges them with /mipanel admin.",
+                ["HelpBodyPlaceholders"] = "Panels and messages can include live tokens:\n{name} {online} {max} {sleepers} {grid} {coords}\n{x} {z} {time} {balance} {points} {server} {wipe} {lastwipe}\nWith PlaceholderAPI installed, its tokens resolve too.\nSee also: panels",
+                ["HelpBodyStatus"] = "The Status panel tints one icon to your live state:\ngreen = safe zone, red = hostile in a safe zone,\nyellow = being raided, blue = AFK, white = building-authorized.\nAn admin enables and places it via /mipanel admin.\nSee also: panels",
+                ["HelpBodyTheming"] = "The HUD is themeable from the config:\npanel background colors, text and icon colors,\nthe status-glow palette, and custom icon URLs.\nSee THEMING.md in the repo for ready-made presets.\nAn admin can recolor live with /mipanel admin.",
+                ["HelpBodyHelp"] = "Shows this help, paged to fit the chat box.\n/mipanel help — the command list\n/mipanel help <topic> — details (e.g. /mipanel help tz)\n/mipanel help <topic> <page> — turn the page\nExample: /mipanel help admin",
+                ["HelpBodyAdmin"] = "[admin] Opens the in-game editor (mouse cursor).\nToggle panels and docks, move a panel between docks,\nnudge its width, and recolor its background — saved live.\nUsage: /mipanel admin\nNeeds the moderninfopanel.admin permission.",
+                ["HelpBodyReload"] = "[admin] Reloads the config from disk and redraws every panel.\nUsage: /mipanel reload\nWorks from chat, F1 console, RCON, and the server console.\nNeeds moderninfopanel.admin (console & RCON always allowed).",
+                ["HelpBodyImport"] = "[admin] Imports an existing InfoPanel config into MIP.\n/mipanel import [path] — defaults to oxide/config/InfoPanel.json\nThe path must be inside the config folder.\nIt merges, saves, then reloads.\nNeeds moderninfopanel.admin.",
                 ["DirN"] = "North", ["DirNE"] = "Northeast", ["DirE"] = "East", ["DirSE"] = "Southeast",
                 ["DirS"] = "South", ["DirSW"] = "Southwest", ["DirW"] = "West", ["DirNW"] = "Northwest"
             }, this);
@@ -1916,7 +1950,12 @@ namespace Oxide.Plugins
                 return;
             }
 
-            if (sub == null) { reply(HelpText(id)); return; }
+            if (sub == null || sub == "help")
+            {
+                bool helpAdmin = id != null && permission.UserHasPermission(id, PermAdmin);
+                HandleHelp(id, helpAdmin, args, reply);
+                return;
+            }
 
             // Light per-player cooldown on the state-changing subcommands so a console macro
             // can't drive repeated saves/redraws. Silently drop while on cooldown.
@@ -1966,19 +2005,85 @@ namespace Oxide.Plugins
             }
         }
 
-        private string HelpText(string id)
+        // ── Paged, drill-down help ──────────────────────────────────────────
+        // `/mipanel help` → paged command index; `/mipanel help <topic> [page]` →
+        // a topic's detail, paged to fit the chat box. Admin topics show only to admins.
+        private const int HelpLinesPerPage = 8;
+
+        private struct HelpEntry
         {
-            var lines = new List<string>
+            public readonly string Name; public readonly bool Admin;
+            public readonly string SumKey; public readonly string BodyKey;
+            public HelpEntry(string name, bool admin, string sum, string body)
+            { Name = name; Admin = admin; SumKey = sum; BodyKey = body; }
+        }
+
+        private static readonly HelpEntry[] HelpEntries =
+        {
+            new HelpEntry("show",         false, "HelpSumShow",         "HelpBodyShow"),
+            new HelpEntry("hide",         false, "HelpSumHide",         "HelpBodyHide"),
+            new HelpEntry("clock",        false, "HelpSumClock",        "HelpBodyClock"),
+            new HelpEntry("timeformat",   false, "HelpSumTimeformat",   "HelpBodyTimeformat"),
+            new HelpEntry("tz",           false, "HelpSumTz",           "HelpBodyTz"),
+            new HelpEntry("panels",       false, "HelpSumPanels",       "HelpBodyPanels"),
+            new HelpEntry("placeholders", false, "HelpSumPlaceholders", "HelpBodyPlaceholders"),
+            new HelpEntry("status",       false, "HelpSumStatus",       "HelpBodyStatus"),
+            new HelpEntry("theming",      false, "HelpSumTheming",      "HelpBodyTheming"),
+            new HelpEntry("help",         false, "HelpSumHelp",         "HelpBodyHelp"),
+            new HelpEntry("admin",        true,  "HelpSumAdmin",        "HelpBodyAdmin"),
+            new HelpEntry("reload",       true,  "HelpSumReload",       "HelpBodyReload"),
+            new HelpEntry("import",       true,  "HelpSumImport",       "HelpBodyImport"),
+        };
+
+        private void HandleHelp(string id, bool isAdmin, string[] args, Action<string> reply)
+        {
+            string a1 = args != null && args.Length > 1 ? args[1].ToLowerInvariant() : null;
+            int page;
+
+            // Topic detail: `/mipanel help <topic> [page]` (a1 is non-numeric).
+            if (a1 != null && !int.TryParse(a1, out page))
             {
-                L("HelpTitle", id), L("HelpToggle", id), L("HelpClockGame", id),
-                L("HelpClockServer", id), L("HelpTimeFormat", id), L("HelpTz", id)
-            };
-            if (id != null && permission.UserHasPermission(id, PermAdmin))
-            {
-                lines.Add(L("HelpImport", id));
-                lines.Add(L("HelpAdmin", id));
+                int found = -1;
+                for (int i = 0; i < HelpEntries.Length; i++)
+                    if (HelpEntries[i].Name == a1 && (!HelpEntries[i].Admin || isAdmin)) { found = i; break; }
+                if (found < 0)
+                {
+                    reply(L("HelpUnknownTopic", id, a1));
+                    reply(RenderHelpIndex(id, isAdmin, 1));
+                    return;
+                }
+                HelpEntry e = HelpEntries[found];
+                int tp = (args.Length > 2 && int.TryParse(args[2], out page) && page > 0) ? page : 1;
+                var body = new List<string>((L(e.BodyKey, id) ?? string.Empty).Split('\n'));
+                reply(Paginate(L("HelpTopicHeader", id, e.Name), body, tp, id, "/mipanel help " + e.Name, L("HelpHintBack", id)));
+                return;
             }
-            return string.Join("\n", lines);
+
+            // Index: `/mipanel help [page]`.
+            int ip = (a1 != null && int.TryParse(a1, out page) && page > 0) ? page : 1;
+            reply(RenderHelpIndex(id, isAdmin, ip));
+        }
+
+        private string RenderHelpIndex(string id, bool isAdmin, int page)
+        {
+            var items = new List<string>(HelpEntries.Length);
+            foreach (HelpEntry e in HelpEntries)
+                if (!e.Admin || isAdmin)
+                    items.Add("<color=#e2a44a>" + e.Name + "</color> — " + L(e.SumKey, id));
+            return Paginate(L("HelpIndexTitle", id), items, page, id, "/mipanel help", L("HelpHintTopic", id));
+        }
+
+        private string Paginate(string title, List<string> lines, int page, string id, string navBase, string endHint)
+        {
+            int per = HelpLinesPerPage;
+            int total = Mathf.Max(1, (lines.Count + per - 1) / per);
+            page = Mathf.Clamp(page, 1, total);
+            int start = (page - 1) * per, end = Mathf.Min(start + per, lines.Count);
+            var sb = new List<string>(per + 2);
+            sb.Add(total > 1 ? title + "  <color=#808080>(" + page + "/" + total + ")</color>" : title);
+            for (int i = start; i < end; i++) sb.Add(lines[i]);
+            sb.Add(page < total ? L("HelpMore", id, navBase + " " + (page + 1)) : endHint);
+            return string.Join("\n", sb);
         }
 
         // Per-player IANA timezone: `/mipanel tz <zone>` (e.g. America/Denver) or `tz off`.
