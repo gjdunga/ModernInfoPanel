@@ -3,7 +3,7 @@
 [![Standards](https://github.com/gjdunga/ModernInfoPanel/actions/workflows/standards.yml/badge.svg)](https://github.com/gjdunga/ModernInfoPanel/actions/workflows/standards.yml)
 [![Compile](https://github.com/gjdunga/ModernInfoPanel/actions/workflows/compile.yml/badge.svg)](https://github.com/gjdunga/ModernInfoPanel/actions/workflows/compile.yml)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
-![Version](https://img.shields.io/badge/version-2.0.1-informational)
+![Version](https://img.shields.io/badge/version-2.1.0-informational)
 
 A configurable corner-HUD information panel for Rust — a modern, security- and
 performance-minded rebuild of the classic InfoPanel concept. Four corner "docks"

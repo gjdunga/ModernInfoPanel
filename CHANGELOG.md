@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Dates are UTC.
 
+## [2.1.0] - 2026-06-10
+
+### Added
+- **Paged, drill-down help system.** `/mipanel help` shows a paged command index;
+  `/mipanel help <topic>` opens a detailed entry (usage, examples, "see also"), itself
+  paged via `/mipanel help <topic> <page>`. Every command plus concept pages (panels,
+  placeholders, status, theming) has an entry, sized to fit the Rust chat box and
+  localized across all 8 locales. Replaces the old single-dump help.
+
 ## [2.0.1] - 2026-06-09
 
 ### Fixed
