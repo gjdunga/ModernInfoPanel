@@ -7,7 +7,7 @@
 ![Modern Info Panel](assets/codefling/cover.png)
 
 - **Title:** Modern Info Panel
-- **Version:** 2.0.0
+- **Version:** 2.1.0
 - **Price:** Free
 - **Tags:** ui, hud, gui, info, panel, clock, compass, events, announcements, oxide, carbon
 - **Compatibility:** Oxide **2.0.7022+** (verified 2.0.7423) · also supports **Carbon**
@@ -19,15 +19,15 @@ Configurable corner HUD panels for Rust: clock, rotating announcements, balance,
 
 ## Features
 
-- **Four corner docks** — top-left, top-right, bottom-left, bottom-right; each
+- **Four corner docks** — top-left, top-right, bottom-left, bottom-right; each with its own edge, size, and offset. Panels tile within a dock by order.
 - **Clock** — in-game or server time, per-player offset, and selectable format.
 - **Rotating announcements** — cycle messages in `normal` or `random` order.
-- **Economy read-outs** — `Balance` (via Economics) and `Points` (via ServerRewards),
+- **Economy read-outs** — `Balance` (via Economics) and `Points` (via ServerRewards), shown only when those plugins are installed.
 - **Coordinates** — X/Z, map grid, or both.
 - **Compass** — eight-point text direction (localized) or raw degrees.
 - **Player counts** — live `online / max` and sleeper counters.
-- **Live event indicators** — airdrop, patrol helicopter, chinook, cargo ship,
-- **Per-player status glow** — the optional `Status` panel tints its icon to each viewer's own
+- **Live event indicators** — airdrop, patrol helicopter, chinook, cargo ship, bradley, and radiation icons that recolor while the event is active.
+- **Per-player status glow** — the optional `Status` panel tints its icon to each viewer's own live state (hostile-in-safezone, being raided, in a safe zone, AFK, or building-authed).
 - **Progress bars** — panels can carry a fill bar that other plugins drive live (0–1) via the API.
 
 ## Permissions
@@ -59,14 +59,14 @@ gpg --verify ModernInfoPanel.cs.asc ModernInfoPanel.cs
 
 Expect: `Good signature from "Gabriel Dungan <gjdunga@gmail.com>"`.
 
-## What's new in 2.0.0
+## What's new in 2.1.0
 
-### Changed
-- Version aligned to a whole-number release (1.6.0 -> 2.0.0). No functional changes.
-
-### Security
-- Release is code-signed: a detached OpenPGP signature (`ModernInfoPanel.cs.asc`) and the public
-  key (`gjdunga.asc`) are attached and verifiable.
+### Added
+- **Paged, drill-down help system.** `/mipanel help` shows a paged command index;
+  `/mipanel help <topic>` opens a detailed entry (usage, examples, "see also"), itself
+  paged via `/mipanel help <topic> <page>`. Every command plus concept pages (panels,
+  placeholders, status, theming) has an entry, sized to fit the Rust chat box and
+  localized across all 8 locales. Replaces the old single-dump help.
 
 ## Links
 
